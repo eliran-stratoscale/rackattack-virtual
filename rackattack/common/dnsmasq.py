@@ -76,10 +76,18 @@ class DNSMasq(threading.Thread):
         self.daemon = True
         threading.Thread.start(self)
 
-    def add(self, mac, ip):
-        self._nodesMACIPPairs.append((mac, ip))
+    def _reload(self):
         self._writeHostsFile()
         os.kill(self._popen.pid, signal.SIGHUP)
+
+    def add(self, mac, ip):
+        self._nodesMACIPPairs.append((mac, ip))
+        self._reload()
+
+    def remove(self, mac):
+        self._nodesMACIPPairs = [(entryMac, entryIp)
+                                 for (entryMac, entryIp) in self._nodesMACIPPairs if entryMac != mac]
+        self._reload()
 
     def _writeHostsFile(self):
         hosts = ['%s,%s,infinite' % (mac.lower(), ip) for mac, ip in self._nodesMACIPPairs]
