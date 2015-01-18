@@ -26,6 +26,9 @@ class FakeHost:
         assert self.expectedDestroy
         self.expectedDestroy = False
 
+    def reconfigureBIOS(self):
+        pass
+
 
 class Test(unittest.TestCase):
     def setUp(self):
@@ -42,6 +45,7 @@ class Test(unittest.TestCase):
         self.expectedTFTPBootToBeConfiguredForInaugurator = False
         self.expectedTFTPBootToBeConfiguredForLocalHost = False
         self.expectedColdReclaim = False
+        self.expectReconfigureBIOS = False
         self.expectedSoftReclaim = False
         self.expectedSelfDestruct = False
         self.softReclaimFailedCallback = None
@@ -140,11 +144,12 @@ class Test(unittest.TestCase):
         self.assertTrue(self.expectedTFTPBootToBeConfiguredForLocalHost)
         self.expectedTFTPBootToBeConfiguredForLocalHost = False
 
-    def reclaimHostCold(self, hostImplementation, tftpboot):
+    def reclaimHostCold(self, hostImplementation, tftpboot, reconfigureBIOS=False):
         self.assertIs(hostImplementation, self.hostImplementation)
         self.assertIs(tftpboot, self.fakeTFTPBoot)
         self.assertTrue(self.expectedColdReclaim)
         self.expectedColdReclaim = False
+        self.assertEqual(self.expectReconfigureBIOS, reconfigureBIOS)
 
     def reclaimHostSoft(self, hostImplementation, tftpboot, failedCallback):
         self.assertIs(hostImplementation, self.hostImplementation)
@@ -326,13 +331,12 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_AllReclaimationRetriesFail_NoUser(self):
         self.callCausesColdReclaim(self.currentTimer)
-
         self.callCausesColdReclaim(self.currentTimer)
         self.expectedClearDisk = True
         self.callCausesColdReclaim(self.currentTimer)
         self.callCausesColdReclaim(self.currentTimer)
+        self.expectReconfigureBIOS = True
         self.callCausesColdReclaim(self.currentTimer)
-
         self.timerCausesSelfDestruct()
 
     def test_vmLifeCycle_AllReclaimationRetriesFail_WithUser(self):
@@ -347,9 +351,9 @@ class Test(unittest.TestCase):
             self.currentTimer, hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
         self.callCausesColdReclaimAndStateChange(
             self.currentTimer, hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
+        self.expectReconfigureBIOS = True
         self.callCausesColdReclaimAndStateChange(
             self.currentTimer, hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
-
         self.timerCausesSelfDestructAndStateChange()
 
     def test_vmLifeCycle_UnableToProvideLabel_ColdReclaim(self):

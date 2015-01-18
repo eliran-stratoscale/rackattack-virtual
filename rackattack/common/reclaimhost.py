@@ -8,9 +8,9 @@ from rackattack.common import globallock
 
 class ReclaimHost(threading.Thread):
     @classmethod
-    def cold(cls, hostImplementation, tftpboot):
+    def cold(cls, hostImplementation, tftpboot, reconfigureBIOS=False):
         cls(cold=True, hostImplementation=hostImplementation,
-            tftpboot=tftpboot, softReclaimFailedCallback=None)
+            tftpboot=tftpboot, softReclaimFailedCallback=None, reconfigureBIOS=reconfigureBIOS)
 
     @classmethod
     def soft(cls, hostImplementation, tftpboot, failedCallback):
@@ -22,10 +22,11 @@ class ReclaimHost(threading.Thread):
     _COLD_RESTART_RETRIES = 5
     _COLD_RESTART_RETRY_INTERVAL = 10
 
-    def __init__(self, cold, hostImplementation, tftpboot, softReclaimFailedCallback):
+    def __init__(self, cold, hostImplementation, tftpboot, softReclaimFailedCallback, reconfigureBIOS=False):
         self._cold = cold
         self._hostImplementation = hostImplementation
         self._tftpboot = tftpboot
+        self._reconfigureBIOS = reconfigureBIOS
         assert cold and softReclaimFailedCallback is None or \
             not cold and softReclaimFailedCallback is not None
         self._softReclaimFailedCallback = softReclaimFailedCallback
@@ -47,6 +48,8 @@ class ReclaimHost(threading.Thread):
                     self._softReclaimFailedCallback()
 
     def _coldRestart(self):
+        if self._reconfigureBIOS:
+            self._hostImplementation.reconfigureBIOS()
         for retry in xrange(self._COLD_RESTART_RETRIES):
             try:
                 self._hostImplementation.coldRestart()

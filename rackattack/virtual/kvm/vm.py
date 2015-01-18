@@ -4,6 +4,7 @@ from rackattack.virtual.kvm import config
 from rackattack.virtual.kvm import network
 from rackattack.virtual.kvm import imagecommands
 import os
+import logging
 
 
 class VM:
@@ -39,6 +40,9 @@ class VM:
         with libvirtsingleton.it().lock():
             self._domain.destroy()
             self._domain.create()
+
+    def reconfigureBIOS(self):
+        logging.warning("Should not be called for VM")
 
     def destroy(self):
         with libvirtsingleton.it().lock():
