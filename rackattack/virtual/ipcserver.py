@@ -4,12 +4,15 @@ from rackattack.virtual.kvm import network
 
 
 class IPCServer(baseipcserver.BaseIPCServer):
-    def __init__(self, allocations):
+    def __init__(self, dnsmasq, allocations):
+        self._dnsmasq = dnsmasq
         self._allocations = allocations
         baseipcserver.BaseIPCServer.__init__(self)
 
     def cmd_allocate(self, requirements, allocationInfo, peer):
         allocation = self._allocations.create(requirements)
+        for vm in allocation.vms().values():
+            self._dnsmasq.addIfNotAlready(vm.primaryMACAddress(), vm.ipAddress())
         return allocation.index()
 
     def cmd_allocation__nodes(self, id, peer):
@@ -50,8 +53,18 @@ class IPCServer(baseipcserver.BaseIPCServer):
         return heartbeat.HEARTBEAT_OK
 
     def cmd_node__rootSSHCredentials(self, allocationID, nodeID, peer):
+        return self._findVM(allocationID, nodeID).rootSSHCredentials()
+
+    def cmd_node__answerDHCP(self, allocationID, nodeID, shouldAnswer, peer):
+        vm = self._findVM(allocationID, nodeID)
+        if shouldAnswer:
+            self._dnsmasq.addIfNotAlready(vm.primaryMACAddress(), vm.ipAddress())
+        else:
+            self._dnsmasq.remove(vm.primaryMACAddress())
+
+    def _findVM(self, allocationID, nodeID):
         allocation = self._allocations.byIndex(allocationID)
         for vm in allocation.vms().values():
             if vm.id() == nodeID:
-                return vm.rootSSHCredentials()
+                return vm
         raise Exception("Node with id '%s' was not found in this allocation" % nodeID)

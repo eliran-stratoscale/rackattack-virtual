@@ -20,11 +20,12 @@ class HostStateMachine:
     _COLD_RECLAIM_RECONFIGURE_BIOS = 4
     _COLD_RECLAIMS_RETRIES_BEFORE_CLEARING_DISK = 2
 
-    def __init__(self, hostImplementation, inaugurate, tftpboot, freshVMJustStarted=True):
+    def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, freshVMJustStarted=True):
         self._hostImplementation = hostImplementation
         self._destroyCallback = None
         self._inaugurate = inaugurate
         self._tftpboot = tftpboot
+        self._dnsmasq = dnsmasq
         self._slowReclaimCounter = 0
         self._stop = False
         self._stateChangeCallback = None
@@ -34,8 +35,7 @@ class HostStateMachine:
             ipAddress=hostImplementation.ipAddress(),
             checkInCallback=self._inauguratorCheckedIn,
             doneCallback=self._inauguratorDone)
-        self._tftpboot.configureForInaugurator(
-            self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress())
+        self._configureForInaugurator()
         if freshVMJustStarted:
             self._changeState(STATE_QUICK_RECLAIMATION_IN_PROGRESS)
         else:
@@ -152,9 +152,7 @@ class HostStateMachine:
             return
         logging.info("Node is being cold reclaimed %(id)s", dict(
             id=self._hostImplementation.id()))
-        self._tftpboot.configureForInaugurator(
-            self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress(),
-            clearDisk=self._clearDiskOnSlowReclaim())
+        self._configureForInaugurator(clearDisk=self._clearDiskOnSlowReclaim())
         self._changeState(STATE_SLOW_RECLAIMATION_IN_PROGRESS)
         reclaimhost.ReclaimHost.cold(self._hostImplementation, self._tftpboot,
                                      reconfigureBIOS=self._initializeBIOSOnSlowReclaim())
@@ -163,8 +161,7 @@ class HostStateMachine:
         assert self._destroyCallback is not None
         logging.info("Node is being soft reclaimed %(id)s", dict(id=self._hostImplementation.id()))
         self._changeState(STATE_QUICK_RECLAIMATION_IN_PROGRESS)
-        self._tftpboot.configureForInaugurator(
-            self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress())
+        self._configureForInaugurator()
         reclaimhost.ReclaimHost.soft(self._hostImplementation, self._tftpboot, self._softReclaimFailed)
 
     def _changeState(self, state):
@@ -174,3 +171,10 @@ class HostStateMachine:
             timer.scheduleIn(timeout=self._TIMEOUT[state], callback=self._timeout, tag=self)
         if self._stateChangeCallback is not None:
             self._stateChangeCallback(self)
+
+    def _configureForInaugurator(self, clearDisk=False):
+        self._dnsmasq.addIfNotAlready(
+            self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress())
+        self._tftpboot.configureForInaugurator(
+            self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress(),
+            clearDisk=clearDisk)

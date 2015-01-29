@@ -70,14 +70,15 @@ for mac, ip in network.allNodesMACIPPairs():
 inaugurateInstance = inaugurate.Inaugurate(bindHostname=network.GATEWAY_IP_ADDRESS)
 imageStore = imagestore.ImageStore()
 buildImageThread = buildimagethread.BuildImageThread(
-    inaugurate=inaugurateInstance, tftpboot=tftpbootInstance, imageStore=imageStore)
+    inaugurate=inaugurateInstance, tftpboot=tftpbootInstance, dnsmasq=dnsmasqInstance,
+    imageStore=imageStore)
 publishFactory = publish.PublishFactory()
 publishInstance = publish.Publish(publishFactory)
 allVMs = dict()
 allocationsInstance = allocations.Allocations(
     broadcaster=publishInstance, buildImageThread=buildImageThread,
     imageStore=imageStore, allVMs=allVMs)
-ipcServer = ipcserver.IPCServer(allocations=allocationsInstance)
+ipcServer = ipcserver.IPCServer(dnsmasq=dnsmasqInstance, allocations=allocationsInstance)
 
 
 def serialLogFilename(vmID):

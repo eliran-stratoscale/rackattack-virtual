@@ -31,7 +31,7 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested._hostsFile.getvalue(),
                           '11:22:33:44:55:66,10.0.0.3,infinite\n11:22:33:44:55:67,10.0.0.4,infinite')
 
-    def test_addDelete(self, *args):
+    def test_addRemove(self, *args):
         self.tested.add('11:22:33:44:55:66', '10.0.0.3')
         self.tested.add('11:22:33:44:55:67', '10.0.0.4')
         self.assertEquals(self.tested._hostsFile.getvalue(),
@@ -40,6 +40,30 @@ class Test(unittest.TestCase):
         self.tested.remove('11:22:33:44:55:66')
         os.kill.assert_called_once_with(12345, signal.SIGHUP)
         self.assertEquals(self.tested._hostsFile.getvalue(), '11:22:33:44:55:67,10.0.0.4,infinite')
+
+    def test_addIfNotAlready(self, *args):
+        self.tested.addIfNotAlready('11:22:33:44:55:66', '10.0.0.3')
+        self.tested.addIfNotAlready('11:22:33:44:55:66', '10.0.0.3')
+        self.assertEquals(self.tested._hostsFile.getvalue(),
+                          '11:22:33:44:55:66,10.0.0.3,infinite')
+        self.tested.remove('11:22:33:44:55:66')
+        self.assertEquals(self.tested._hostsFile.getvalue(), '')
+        self.tested.addIfNotAlready('11:22:33:44:55:66', '10.0.0.3')
+        self.assertEquals(self.tested._hostsFile.getvalue(),
+                          '11:22:33:44:55:66,10.0.0.3,infinite')
+
+    def test_addRemoveTwice(self, *args):
+        self.tested.add('11:22:33:44:55:66', '10.0.0.3')
+        self.tested.add('11:22:33:44:55:67', '10.0.0.4')
+        self.assertEquals(self.tested._hostsFile.getvalue(),
+                          '11:22:33:44:55:66,10.0.0.3,infinite\n11:22:33:44:55:67,10.0.0.4,infinite')
+        self.tested.remove('11:22:33:44:55:66')
+        self.assertEquals(self.tested._hostsFile.getvalue(), '11:22:33:44:55:67,10.0.0.4,infinite')
+        self.tested.remove('11:22:33:44:55:66')
+        self.assertEquals(self.tested._hostsFile.getvalue(), '11:22:33:44:55:67,10.0.0.4,infinite')
+        self.tested.add('11:22:33:44:55:66', '10.0.0.3')
+        self.assertEquals(self.tested._hostsFile.getvalue(),
+                          '11:22:33:44:55:67,10.0.0.4,infinite\n11:22:33:44:55:66,10.0.0.3,infinite')
 
 
 if __name__ == '__main__':

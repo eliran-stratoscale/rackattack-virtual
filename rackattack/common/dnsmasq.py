@@ -81,8 +81,15 @@ class DNSMasq(threading.Thread):
         os.kill(self._popen.pid, signal.SIGHUP)
 
     def add(self, mac, ip):
+        assert mac not in [x[0] for x in self._nodesMACIPPairs]
+        assert ip not in [x[1] for x in self._nodesMACIPPairs]
         self._nodesMACIPPairs.append((mac, ip))
         self._reload()
+
+    def addIfNotAlready(self, mac, ip):
+        if (mac, ip) in self._nodesMACIPPairs:
+            return
+        self.add(mac, ip)
 
     def remove(self, mac):
         self._nodesMACIPPairs = [(entryMac, entryIp)
