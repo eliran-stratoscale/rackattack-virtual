@@ -11,8 +11,6 @@ class IPCServer(baseipcserver.BaseIPCServer):
 
     def cmd_allocate(self, requirements, allocationInfo, peer):
         allocation = self._allocations.create(requirements)
-        for vm in allocation.vms().values():
-            self._dnsmasq.addIfNotAlready(vm.primaryMACAddress(), vm.ipAddress())
         return allocation.index()
 
     def cmd_allocation__nodes(self, id, peer):

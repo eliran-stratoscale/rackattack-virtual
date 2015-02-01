@@ -76,7 +76,7 @@ publishFactory = publish.PublishFactory()
 publishInstance = publish.Publish(publishFactory)
 allVMs = dict()
 allocationsInstance = allocations.Allocations(
-    broadcaster=publishInstance, buildImageThread=buildImageThread,
+    dnsmasq=dnsmasqInstance, broadcaster=publishInstance, buildImageThread=buildImageThread,
     imageStore=imageStore, allVMs=allVMs)
 ipcServer = ipcserver.IPCServer(dnsmasq=dnsmasqInstance, allocations=allocationsInstance)
 

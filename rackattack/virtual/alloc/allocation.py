@@ -11,9 +11,10 @@ class Allocation:
     _LIMBO_AFTER_DEATH_DURATION = 60
     _HEARTBEAT_TIMEOUT = 15
 
-    def __init__(self, index, requirements, broadcaster, buildImageThread, imageStore, allVMs):
+    def __init__(self, index, requirements, dnsmasq, broadcaster, buildImageThread, imageStore, allVMs):
         self._index = index
         self._requirements = requirements
+        self._dnsmasq = dnsmasq
         self._broadcaster = broadcaster
         self._buildImageThread = buildImageThread
         self._imageStore = imageStore
@@ -126,6 +127,7 @@ class Allocation:
         for name, requirement in self._requirements.iteritems():
             instance = vm.VM.createFromImageStore(
                 index=self._availableIndex(), requirement=requirement, imageStore=self._imageStore)
+            self._dnsmasq.addIfNotAlready(instance.primaryMACAddress(), instance.ipAddress())
             self._vms[name] = instance
             self._allVMs[instance.index()] = instance
         self._broadcaster.allocationChangedState(self._index)

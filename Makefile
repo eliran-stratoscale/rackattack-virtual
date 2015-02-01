@@ -28,6 +28,7 @@ build/rackattack.virtual.egg: rackattack/virtual/main.py
 -include build/rackattack.virtual.egg.dep
 
 install: build/rackattack.virtual.egg
+	-sudo service rackattack-virtual stop
 	-sudo systemctl stop rackattack-virtual.service
 	-sudo mkdir /usr/share/rackattack.virtual
 	sudo cp build/rackattack.virtual.egg /usr/share/rackattack.virtual
@@ -43,6 +44,7 @@ install_service_upstart:
 	if ["$(DONT_START_SERVICE)" == ""]; then sudo service rackattack-virtual start; fi
 
 uninstall:
+	-sudo service rackattack-virtual stop
 	-sudo systemctl stop rackattack-virtual
 	-sudo systemctl disable rackattack-virtual.service
 	-sudo rm -fr /usr/lib/systemd/system/rackattack-virtual.service /etc/init/rackattack-virtual.conf

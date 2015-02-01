@@ -3,7 +3,8 @@ from rackattack.common import globallock
 
 
 class Allocations:
-    def __init__(self, broadcaster, buildImageThread, imageStore, allVMs):
+    def __init__(self, dnsmasq, broadcaster, buildImageThread, imageStore, allVMs):
+        self._dnsmasq = dnsmasq
         self._broadcaster = broadcaster
         self._buildImageThread = buildImageThread
         self._imageStore = imageStore
@@ -15,7 +16,7 @@ class Allocations:
         assert globallock.assertLocked()
         self._cleanup()
         alloc = allocation.Allocation(
-            index=self._index, requirements=requirements,
+            index=self._index, requirements=requirements, dnsmasq=self._dnsmasq,
             broadcaster=self._broadcaster, buildImageThread=self._buildImageThread,
             imageStore=self._imageStore, allVMs=self._allVMs)
         self._allocations.append(alloc)
