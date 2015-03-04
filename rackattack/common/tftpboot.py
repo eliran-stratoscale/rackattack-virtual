@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import atexit
 import logging
+import inaugurator.server.config
 
 
 INAUGURATOR_KERNEL = "/usr/share/inaugurator/inaugurator.vmlinuz"
@@ -45,10 +46,11 @@ class TFTPBoot:
         shutil.copy(INAUGURATOR_INITRD, self._root)
         os.mkdir(self._pxelinuxConfigDir)
 
-    def configureForInaugurator(self, mac, ip, clearDisk=False):
+    def configureForInaugurator(self, id, mac, ip, clearDisk=False):
         if clearDisk:
-            logging.info("Configuring host %(ipAddress)s inaugurator to clearDisk", dict(ipAddress=ip))
-        self._writeConfiguration(mac, self._configurationForInaugurator(mac, ip, clearDisk=clearDisk))
+            logging.info("Configuring %(id)s host %(ipAddress)s inaugurator to clearDisk", dict(
+                id=id, ipAddress=ip))
+        self._writeConfiguration(mac, self._configurationForInaugurator(id, mac, ip, clearDisk=clearDisk))
 
     def configureForLocalBoot(self, mac):
         self._writeConfiguration(mac, _CONFIGURATION_FOR_LOCAL_BOOT)
@@ -59,18 +61,20 @@ class TFTPBoot:
         with open(path, "w") as f:
             f.write(contents)
 
-    def _configurationForInaugurator(self, mac, ip, clearDisk):
+    def _configurationForInaugurator(self, id, mac, ip, clearDisk):
         return _INAUGURATOR_TEMPLATE % dict(
-            inauguratorCommandLine=self.inauguratorCommandLine(mac, ip, clearDisk),
+            inauguratorCommandLine=self.inauguratorCommandLine(id, mac, ip, clearDisk),
             inauguratorKernel=os.path.basename(INAUGURATOR_KERNEL),
             inauguratorInitrd=os.path.basename(INAUGURATOR_INITRD))
 
-    def inauguratorCommandLine(self, mac, ip, clearDisk):
+    def inauguratorCommandLine(self, id, mac, ip, clearDisk):
         result = _INAUGURATOR_COMMAND_LINE % dict(
             macAddress=mac, ipAddress=ip, netmask=self._netmask,
             osmosisServerIP=self._osmosisServerIP, inauguratorServerIP=self._inauguratorServerIP,
             inauguratorGatewayIP=self._inauguratorGatewayIP,
-            rootPassword=self._rootPassword)
+            rootPassword=self._rootPassword,
+            inauguratorServerPort=inaugurator.server.config.PORT,
+            id=id)
         if self._withLocalObjectStore:
             result += " --inauguratorWithLocalObjectStore"
         if clearDisk:
@@ -118,6 +122,8 @@ _INAUGURATOR_COMMAND_LINE = \
     "console=ttyS0,115200n8 " \
     "--inauguratorSource=network " \
     "--inauguratorUseNICWithMAC=%(macAddress)s --inauguratorOsmosisObjectStores=%(osmosisServerIP)s:1010 " \
-    "--inauguratorServerHostname=%(inauguratorServerIP)s --inauguratorIPAddress=%(ipAddress)s " \
+    "--inauguratorServerAMQPURL=amqp://guest:guest@%(inauguratorServerIP)s:%(inauguratorServerPort)s/%%2F " \
+    "--inauguratorMyIDForServer=%(id)s " \
+    "--inauguratorIPAddress=%(ipAddress)s " \
     "--inauguratorNetmask=%(netmask)s --inauguratorGateway=%(inauguratorGatewayIP)s " \
     "--inauguratorChangeRootPassword=%(rootPassword)s"

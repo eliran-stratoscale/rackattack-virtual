@@ -79,6 +79,8 @@ class ReclaimHost(threading.Thread):
         ssh.run.script(
             "kexec --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" %
             self._tftpboot.inauguratorCommandLine(
-                self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress(),
+                self._hostImplementation.id(),
+                self._hostImplementation.primaryMACAddress(),
+                self._hostImplementation.ipAddress(),
                 clearDisk=False))
         ssh.run.backgroundScript("sleep 2; kexec -e")

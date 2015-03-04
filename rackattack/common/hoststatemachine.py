@@ -15,7 +15,7 @@ class HostStateMachine:
     _TIMEOUT = {
         STATE_QUICK_RECLAIMATION_IN_PROGRESS: 120,
         STATE_SLOW_RECLAIMATION_IN_PROGRESS: 7 * 60,
-        STATE_INAUGURATION_LABEL_PROVIDED: 7 * 60}
+        STATE_INAUGURATION_LABEL_PROVIDED: 1 * 60}
     _COLD_RECLAIMS_RETRIES = 5
     _COLD_RECLAIM_RECONFIGURE_BIOS = 4
     _COLD_RECLAIMS_RETRIES_BEFORE_CLEARING_DISK = 2
@@ -31,10 +31,12 @@ class HostStateMachine:
         self._stateChangeCallback = None
         self._imageLabel = None
         self._imageHint = None
+        self._inaugurationProgressPercent = 0
         self._inaugurate.register(
-            ipAddress=hostImplementation.ipAddress(),
+            id=hostImplementation.id(),
             checkInCallback=self._inauguratorCheckedIn,
-            doneCallback=self._inauguratorDone)
+            doneCallback=self._inauguratorDone,
+            progressCallback=self._inauguratorProgress)
         self._configureForInaugurator()
         if freshVMJustStarted:
             self._changeState(STATE_QUICK_RECLAIMATION_IN_PROGRESS)
@@ -78,7 +80,7 @@ class HostStateMachine:
     def destroy(self):
         assert globallock.assertLocked()
         logging.info("destroying host %(host)s", dict(host=self._hostImplementation.id()))
-        self._inaugurate.unregister(self._hostImplementation.ipAddress())
+        self._inaugurate.unregister(self._hostImplementation.id())
         self._changeState(STATE_DESTROYED)
         assert self._destroyCallback is not None
         self._destroyCallback = None
@@ -127,7 +129,8 @@ class HostStateMachine:
             logging.info("Node %(id)s being provided a label '%(label)s'", dict(
                 id=self._hostImplementation.id(), label=self._imageLabel))
             self._inaugurate.provideLabel(
-                ipAddress=self._hostImplementation.ipAddress(), label=self._imageLabel)
+                id=self._hostImplementation.id(), label=self._imageLabel)
+            self._inaugurationProgressPercent = 0
             self._changeState(STATE_INAUGURATION_LABEL_PROVIDED)
         except:
             logging.exception("Unable to provide label, cold reclaiming host %(host)s", dict(
@@ -176,5 +179,18 @@ class HostStateMachine:
         self._dnsmasq.addIfNotAlready(
             self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress())
         self._tftpboot.configureForInaugurator(
-            self._hostImplementation.primaryMACAddress(), self._hostImplementation.ipAddress(),
+            self._hostImplementation.id(),
+            self._hostImplementation.primaryMACAddress(),
+            self._hostImplementation.ipAddress(),
             clearDisk=clearDisk)
+
+    def _inauguratorProgress(self, progress):
+        if self._state not in [STATE_INAUGURATION_LABEL_PROVIDED, STATE_CHECKED_IN]:
+            logging.error("Progress message in invalid state: %(state)s", dict(state=self._state))
+            return
+        if self._state != STATE_INAUGURATION_LABEL_PROVIDED or u'percent' not in progress:
+            return
+        if progress[u'percent'] != self._inaugurationProgressPercent:
+            self._inaugurationProgressPercent = progress[u'percent']
+            timer.cancelAllByTag(tag=self)
+            timer.scheduleIn(timeout=self._TIMEOUT[STATE_INAUGURATION_LABEL_PROVIDED], callback=self._timeout, tag=self)

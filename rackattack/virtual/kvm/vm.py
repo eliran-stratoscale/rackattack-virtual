@@ -8,9 +8,12 @@ import logging
 
 
 class VM:
+    _MAX_INDEX = 100
+
     def __init__(
             self, index, requirement, domain,
             manifest, disk1SizeGB, disk2SizeGB):
+        assert index < self._MAX_INDEX
         self._index = index
         self._requirement = requirement
         self._domain = domain
@@ -113,3 +116,7 @@ class VM:
     @classmethod
     def _nameFromIndex(cls, index):
         return "rackattack-vm%d" % index
+
+    @classmethod
+    def allPossibleIDs(cls):
+        return [cls._nameFromIndex(i) for i in xrange(cls._MAX_INDEX)]

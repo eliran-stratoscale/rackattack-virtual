@@ -3,6 +3,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(leve
 from rackattack.ssh import connection
 connection.discardParamikoLogs()
 connection.discardSSHDebugMessages()
+logging.getLogger('pika').setLevel(logging.INFO)
 import time
 import argparse
 from rackattack.virtual import ipcserver
@@ -11,6 +12,7 @@ from rackattack.virtual.kvm import cleanup
 import rackattack.virtual.handlekill
 from rackattack.virtual.kvm import config
 from rackattack.virtual.kvm import network
+from rackattack.virtual.kvm import vm
 from rackattack.virtual.kvm import imagestore
 from rackattack.common import dnsmasq
 from rackattack.common import globallock
@@ -33,6 +35,7 @@ parser.add_argument("--maximumVMs", type=int)
 parser.add_argument("--diskImagesDirectory")
 parser.add_argument("--serialLogsDirectory")
 parser.add_argument("--managedPostMortemPacksDirectory")
+parser.add_argument("--rabbitMQDirectory")
 args = parser.parse_args()
 
 if args.maximumVMs:
@@ -43,6 +46,8 @@ if args.serialLogsDirectory:
     config.SERIAL_LOGS_DIRECTORY = args.serialLogsDirectory
 if args.managedPostMortemPacksDirectory:
     config.MANAGED_POST_MORTEM_PACKS_DIRECTORY = args.managedPostMortemPacksDirectory
+if args.rabbitMQDirectory:
+    config.RABBIT_MQ_DIRECTORY = args.rabbitMQDirectory
 
 cleanup.cleanup()
 atexit.register(cleanup.cleanup)
@@ -67,7 +72,7 @@ dnsmasqInstance = dnsmasq.DNSMasq(
     interface="rackattacknetbr")
 for mac, ip in network.allNodesMACIPPairs():
     dnsmasqInstance.add(mac, ip)
-inaugurateInstance = inaugurate.Inaugurate(bindHostname=network.GATEWAY_IP_ADDRESS)
+inaugurateInstance = inaugurate.Inaugurate(config.RABBIT_MQ_DIRECTORY, vm.VM.allPossibleIDs())
 imageStore = imagestore.ImageStore()
 buildImageThread = buildimagethread.BuildImageThread(
     inaugurate=inaugurateInstance, tftpboot=tftpbootInstance, dnsmasq=dnsmasqInstance,

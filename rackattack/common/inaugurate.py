@@ -1,44 +1,54 @@
 from rackattack.common import globallock
 from rackattack.tcp import debug
 from inaugurator.server import server
+from inaugurator.server import rabbitmqwrapper
 import logging
 
 
 class Inaugurate:
-    def __init__(self, bindHostname):
+    def __init__(self, filesPath, allPossibleIDs):
         self._registered = {}
+        self._rabbit = rabbitmqwrapper.RabbitMQWrapper(filesPath)
         self._server = server.Server(
-            bindHostname=bindHostname, checkInCallback=self._checkIn, doneCallback=self._done)
+            checkInCallback=self._checkIn, doneCallback=self._done, progressCallback=self._progress,
+            listeningIDs=allPossibleIDs)
 
-    def register(self, ipAddress, checkInCallback, doneCallback):
+    def register(self, id, checkInCallback, doneCallback, progressCallback):
         assert globallock.assertLocked()
-        assert ipAddress not in self._registered
-        self._registered[ipAddress] = dict(checkInCallback=checkInCallback, doneCallback=doneCallback)
+        assert id not in self._registered
+        self._registered[id] = dict(
+            checkInCallback=checkInCallback, doneCallback=doneCallback,
+            progressCallback=progressCallback)
 
-    def unregister(self, ipAddress):
+    def unregister(self, id):
         assert globallock.assertLocked()
-        assert ipAddress in self._registered
-        del self._registered[ipAddress]
+        assert id in self._registered
+        del self._registered[id]
 
-    def provideLabel(self, ipAddress, label):
-        logging.info("%(ipAddress)s received label '%(label)s'", dict(
-            ipAddress=ipAddress, label=label))
-        with debug.logNetwork("Providing label '%(label)s' to '%(ipAddress)s'" % dict(
-                label=label, ipAddress=ipAddress)):
-            self._server.provideLabel(ipAddress=ipAddress, label=label)
+    def provideLabel(self, id, label):
+        logging.info("%(id)s received label '%(label)s'", dict(id=id, label=label))
+        with debug.logNetwork("Providing label '%(label)s' to '%(id)s'" % dict(label=label, id=id)):
+            self._server.provideLabel(id=id, label=label)
 
-    def _checkIn(self, ipAddress):
-        logging.info("%(ipAddress)s check in", dict(ipAddress=ipAddress))
+    def _checkIn(self, id):
+        logging.info("%(id)s inaugurator check in", dict(id=id))
         with globallock.lock():
-            if ipAddress not in self._registered:
-                logging.error("Unknown Inaugurator checked in: %(ipAddress)s", dict(ipAddress=ipAddress))
+            if id not in self._registered:
+                logging.error("Unknown Inaugurator checked in: %(id)s", dict(id=id))
                 return
-            self._registered[ipAddress]['checkInCallback']()
+            self._registered[id]['checkInCallback']()
 
-    def _done(self, ipAddress):
-        logging.info("%(ipAddress)s done", dict(ipAddress=ipAddress))
+    def _done(self, id):
+        logging.info("%(id)s done", dict(id=id))
         with globallock.lock():
-            if ipAddress not in self._registered:
-                logging.error("Unknown Inaugurator checked in: %(ipAddress)s", dict(ipAddress=ipAddress))
+            if id not in self._registered:
+                logging.error("Unknown Inaugurator done: %(id)s", dict(id=id))
                 return
-            self._registered[ipAddress]['doneCallback']()
+            self._registered[id]['doneCallback']()
+
+    def _progress(self, id, progress):
+        with globallock.lock():
+            if id not in self._registered:
+                logging.error("Unknown Inaugurator progress: %(id)s", dict(id=id))
+                return
+            self._registered[id]['progressCallback'](progress)
