@@ -107,26 +107,28 @@ class Test(unittest.TestCase):
         self.currentTimer = None
         self.currentTimerTag = None
 
-    def inauguratorCommandLine(self, mac, ip):
+    def inauguratorCommandLine(self, id, mac, ip):
+        self.assertEquals(id, self.hostImplementation.id())
         self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
         self.assertEquals(ip, self.hostImplementation.ipAddress())
         return "fake inaugurator command line"
 
-    def registerForInauguration(self, ipAddress, checkInCallback, doneCallback):
-        self.assertEquals(ipAddress, self.hostImplementation.ipAddress())
+    def registerForInauguration(self, id, checkInCallback, doneCallback, progressCallback):
+        self.assertEquals(id, self.hostImplementation.id())
         self.assertIs(self.checkInCallback, None)
         self.assertIs(self.doneCallback, None)
         self.checkInCallback = checkInCallback
         self.doneCallback = doneCallback
+        self.progressCallback = progressCallback
 
-    def unregisterForInauguration(self, ipAddress):
+    def unregisterForInauguration(self, id):
         self.assertIsNot(self.checkInCallback, None)
         self.assertIsNot(self.doneCallback, None)
         self.checkInCallback = None
         self.doneCallback = None
 
-    def provideLabelForInauguration(self, ipAddress, label):
-        self.assertEquals(ipAddress, self.hostImplementation.ipAddress())
+    def provideLabelForInauguration(self, id, label):
+        self.assertEquals(id, self.hostImplementation.id())
         if self.provideLabelRaises:
             raise Exception("Provide label raises on purpose, as part of test")
         self.assertEquals(label, self.expectedProvidedLabel)
@@ -135,7 +137,8 @@ class Test(unittest.TestCase):
     def isObjectInitialized(self):
         return hasattr(self, 'tested')
 
-    def tftpbootConfigureForInaugurator(self, mac, ip, clearDisk=False):
+    def tftpbootConfigureForInaugurator(self, id, mac, ip, clearDisk=False):
+        self.assertEquals(id, self.hostImplementation.id())
         self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
         self.assertEquals(ip, self.hostImplementation.ipAddress())
         self.assertTrue(self.expectedTFTPBootToBeConfiguredForInaugurator)

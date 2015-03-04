@@ -193,4 +193,5 @@ class HostStateMachine:
         if progress[u'percent'] != self._inaugurationProgressPercent:
             self._inaugurationProgressPercent = progress[u'percent']
             timer.cancelAllByTag(tag=self)
-            timer.scheduleIn(timeout=self._TIMEOUT[STATE_INAUGURATION_LABEL_PROVIDED], callback=self._timeout, tag=self)
+            timer.scheduleIn(timeout=self._TIMEOUT[STATE_INAUGURATION_LABEL_PROVIDED],
+                             callback=self._timeout, tag=self)
