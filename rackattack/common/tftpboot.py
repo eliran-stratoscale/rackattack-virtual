@@ -3,7 +3,6 @@ import shutil
 import tempfile
 import atexit
 import logging
-import inaugurator.server.config
 
 
 INAUGURATOR_KERNEL = "/usr/share/inaugurator/inaugurator.vmlinuz"
@@ -12,10 +11,11 @@ INAUGURATOR_INITRD = "/usr/share/inaugurator/inaugurator.thin.initrd.img"
 
 class TFTPBoot:
     def __init__(
-            self, netmask, inauguratorServerIP, inauguratorGatewayIP,
+            self, netmask, inauguratorServerIP, inauguratorServerPort, inauguratorGatewayIP,
             osmosisServerIP, rootPassword, withLocalObjectStore):
         self._netmask = netmask
         self._inauguratorServerIP = inauguratorServerIP
+        self._inauguratorServerPort = inauguratorServerPort
         self._inauguratorGatewayIP = inauguratorGatewayIP
         self._osmosisServerIP = osmosisServerIP
         self._withLocalObjectStore = withLocalObjectStore
@@ -71,9 +71,9 @@ class TFTPBoot:
         result = _INAUGURATOR_COMMAND_LINE % dict(
             macAddress=mac, ipAddress=ip, netmask=self._netmask,
             osmosisServerIP=self._osmosisServerIP, inauguratorServerIP=self._inauguratorServerIP,
+            inauguratorServerPort=self._inauguratorServerPort,
             inauguratorGatewayIP=self._inauguratorGatewayIP,
             rootPassword=self._rootPassword,
-            inauguratorServerPort=inaugurator.server.config.PORT,
             id=id)
         if self._withLocalObjectStore:
             result += " --inauguratorWithLocalObjectStore"

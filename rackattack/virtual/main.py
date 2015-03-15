@@ -25,6 +25,7 @@ from rackattack.tcp import transportserver
 from twisted.internet import reactor
 from twisted.web import server
 from rackattack.common import httprootresource
+import inaugurator.server.config
 import atexit
 
 parser = argparse.ArgumentParser()
@@ -56,6 +57,7 @@ network.setUp()
 tftpbootInstance = tftpboot.TFTPBoot(
     netmask=network.NETMASK,
     inauguratorServerIP=network.GATEWAY_IP_ADDRESS,
+    inauguratorServerPort=inaugurator.sever.config.PORT,
     inauguratorGatewayIP=network.GATEWAY_IP_ADDRESS,
     osmosisServerIP=network.GATEWAY_IP_ADDRESS,
     rootPassword=config.ROOT_PASSWORD,
