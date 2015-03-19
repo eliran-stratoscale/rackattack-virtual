@@ -32,6 +32,10 @@ class IPCServer(baseipcserver.BaseIPCServer):
                 osmosisServerIP=network.GATEWAY_IP_ADDRESS)
         return result
 
+    def cmd_allocation__inauguratorsIDs(self, id, peer):
+        self._allocations.byIndex(id)
+        return dict(all="rackattack-vm50")
+
     def cmd_allocation__free(self, id, peer):
         allocation = self._allocations.byIndex(id)
         allocation.free()

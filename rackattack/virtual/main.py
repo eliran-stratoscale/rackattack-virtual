@@ -57,7 +57,7 @@ network.setUp()
 tftpbootInstance = tftpboot.TFTPBoot(
     netmask=network.NETMASK,
     inauguratorServerIP=network.GATEWAY_IP_ADDRESS,
-    inauguratorServerPort=inaugurator.sever.config.PORT,
+    inauguratorServerPort=inaugurator.server.config.PORT,
     inauguratorGatewayIP=network.GATEWAY_IP_ADDRESS,
     osmosisServerIP=network.GATEWAY_IP_ADDRESS,
     rootPassword=config.ROOT_PASSWORD,
@@ -79,8 +79,7 @@ imageStore = imagestore.ImageStore()
 buildImageThread = buildimagethread.BuildImageThread(
     inaugurate=inaugurateInstance, tftpboot=tftpbootInstance, dnsmasq=dnsmasqInstance,
     imageStore=imageStore)
-publishFactory = publish.PublishFactory()
-publishInstance = publish.Publish(publishFactory)
+publishInstance = publish.Publish("ampq://localhost:%d/%%2F" % inaugurator.server.config.PORT)
 allVMs = dict()
 allocationsInstance = allocations.Allocations(
     dnsmasq=dnsmasqInstance, broadcaster=publishInstance, buildImageThread=buildImageThread,
@@ -103,6 +102,5 @@ root = httprootresource.HTTPRootResource(
     config.MANAGED_POST_MORTEM_PACKS_DIRECTORY)
 reactor.listenTCP(args.httpPort, server.Site(root))
 reactor.listenTCP(args.requestPort, transportserver.TransportFactory(ipcServer.handle))
-reactor.listenTCP(args.subscribePort, publishFactory)
 logging.info("Virtual RackAttack up and running")
 reactor.run()
