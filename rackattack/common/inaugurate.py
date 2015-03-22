@@ -6,16 +6,16 @@ import logging
 
 
 class Inaugurate:
-    def __init__(self, filesPath, allPossibleIDs):
+    def __init__(self, filesPath):
         self._registered = {}
         self._rabbit = rabbitmqwrapper.RabbitMQWrapper(filesPath)
         self._server = server.Server(
-            checkInCallback=self._checkIn, doneCallback=self._done, progressCallback=self._progress,
-            listeningIDs=allPossibleIDs)
+            checkInCallback=self._checkIn, doneCallback=self._done, progressCallback=self._progress)
 
     def register(self, id, checkInCallback, doneCallback, progressCallback):
         assert globallock.assertLocked()
         assert id not in self._registered
+        self._server.listenOnID(id)
         self._registered[id] = dict(
             checkInCallback=checkInCallback, doneCallback=doneCallback,
             progressCallback=progressCallback)
