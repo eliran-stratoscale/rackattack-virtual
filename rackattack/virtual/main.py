@@ -74,7 +74,7 @@ dnsmasqInstance = dnsmasq.DNSMasq(
     interface="rackattacknetbr")
 for mac, ip in network.allNodesMACIPPairs():
     dnsmasqInstance.add(mac, ip)
-inaugurateInstance = inaugurate.Inaugurate(config.RABBIT_MQ_DIRECTORY, vm.VM.allPossibleIDs())
+inaugurateInstance = inaugurate.Inaugurate(config.RABBIT_MQ_DIRECTORY)
 imageStore = imagestore.ImageStore()
 buildImageThread = buildimagethread.BuildImageThread(
     inaugurate=inaugurateInstance, tftpboot=tftpbootInstance, dnsmasq=dnsmasqInstance,
