@@ -64,7 +64,7 @@ class Allocation:
 
     def createPostMortemPack(self):
         contents = []
-        for name, vmInstance in self._vms.iteritems():
+        for name, vmInstance in self._allVMs.iteritems():
             contents.append("\n\n\n****************\n%s == %s\n******************" % (
                 vmInstance.id(), name))
             with open(vmInstance.serialLogFilename(), "rb") as f:
@@ -97,7 +97,13 @@ class Allocation:
             sizeGB = requirement['hardwareConstraints']['minimumDisk1SizeGB']
             try:
                 self._imageStore.get(imageLabel, sizeGB)
-            except:
+                logging.info('Image already exists in image store: %(label)s %(sizeGB)sGB', dict(
+                    label=imageLabel, sizeGB=sizeGB))
+            except Exception as e:
+                logging.info(
+                    "Image '%(image)s'/%(sizeGB)sGB does not exist in image store, "
+                    "will build (error: %(error)s)", dict(
+                        error=str(e), image=imageLabel, sizeGB=sizeGB))
                 toEnqeue.add((imageLabel, sizeGB))
         for imageLabel, sizeGB in toEnqeue:
             self._broadcaster.allocationProviderMessage(
