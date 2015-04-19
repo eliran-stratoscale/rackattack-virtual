@@ -34,6 +34,9 @@ class TFTPBoot:
     def _installPXELinux(self):
         if os.path.exists("/usr/share/syslinux/menu.c32"):
             shutil.copy("/usr/share/syslinux/menu.c32", self._root)
+            if os.path.exists("/usr/share/syslinux/libutil.c32"):
+                shutil.copy("/usr/share/syslinux/libutil.c32", self._root)
+                shutil.copy("/usr/share/syslinux/ldlinux.c32", self._root)
         else:
             shutil.copy("/usr/lib/syslinux/modules/bios/menu.c32", self._root)
             shutil.copy("/usr/lib/syslinux/modules/bios/ldlinux.c32", self._root)
