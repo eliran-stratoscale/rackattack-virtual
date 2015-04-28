@@ -1,14 +1,12 @@
 from rackattack.common import globallock
 from rackattack.tcp import debug
 from inaugurator.server import server
-from inaugurator.server import rabbitmqwrapper
 import logging
 
 
 class Inaugurate:
     def __init__(self, filesPath):
         self._registered = {}
-        self._rabbit = rabbitmqwrapper.RabbitMQWrapper(filesPath)
         self._server = server.Server(
             checkInCallback=self._checkIn, doneCallback=self._done, progressCallback=self._progress)
 
