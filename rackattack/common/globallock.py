@@ -21,7 +21,7 @@ def lock():
         yield
         released = time.time()
         took = released - acquired
-        if took > 0.1:
+        if took > 0.3:
             logging.error(
                 "Holding the global lock took more than 0.1s: %(took)ss. Stack:\n%(stack)s", dict(
                     took=took, stack=traceback.format_stack()))
