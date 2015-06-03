@@ -119,9 +119,13 @@ class HostStateMachine:
         if self._state != STATE_QUICK_RECLAIMATION_IN_PROGRESS:
             logging.warning("Ignoring soft reclamation failure, node already destroyed")
             return
+        if self._imageLabel is None:
+            currentLabelMsg = 'First time label is assigned for host. Cannot tell previous label'
+        else:
+            currentLabelMsg = 'Current label: %(label)s' % dict(label=self._imageLabel)
         logging.warning(
-            "Soft reclaimation for host %(id)s failed, reverting to cold reclaimation",
-            dict(id=self._hostImplementation.id(), state=self._state))
+            "Soft reclaimation for host %(id)s failed, reverting to cold reclaimation. %(currentLabelMsg)s",
+            dict(id=self._hostImplementation.id(), currentLabelMsg=currentLabelMsg))
         self._coldReclaim()
 
     def _provideLabel(self):
