@@ -47,6 +47,8 @@ class Inaugurate:
             self._registered[id]['doneCallback']()
 
     def _progress(self, id, progress):
+        if u'state' in progress and progress[u'state'] == 'digesting':
+            return
         with globallock.lock():
             if id not in self._registered:
                 logging.error("Unknown Inaugurator progress: %(id)s", dict(id=id))
