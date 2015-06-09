@@ -85,7 +85,6 @@ class Test(unittest.TestCase):
         self.assertIs(stateMachine, self.tested)
         self.assertTrue(self.expectedSelfDestruct)
         self.expectedSelfDestruct = False
-        self.tested.destroy()
 
     def scheduleTimerIn(self, timeout, callback, tag):
         self.assertIs(self.currentTimer, None)

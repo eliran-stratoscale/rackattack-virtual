@@ -13,7 +13,6 @@ class Hosts:
 
     def destroy(self, stateMachine):
         self._stateMachines.remove(stateMachine)
-        stateMachine.destroy()
 
     def all(self):
         return self._stateMachines

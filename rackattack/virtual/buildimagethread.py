@@ -72,7 +72,7 @@ class BuildImageThread(threading.Thread):
         logging.info("Done building image using inaugurator (label %(label)s)", dict(label=label))
 
     def _vmCommitedSuicide(self, stateMachine):
-        stateMachine.destroy()
+        pass
 
     def _vmChangedState(self, stateMachine):
         if stateMachine.state() in [
