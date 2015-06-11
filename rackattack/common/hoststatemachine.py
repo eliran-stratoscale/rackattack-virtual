@@ -101,7 +101,10 @@ class HostStateMachine:
 
     def _inauguratorDone(self):
         assert globallock.assertLocked()
-        assert self._state == STATE_INAUGURATION_LABEL_PROVIDED
+        if self._state != STATE_INAUGURATION_LABEL_PROVIDED:
+            logging.error('Got an inauguration-done message for %(server)s in state %(state)s, ignoring.',
+                          dict(server=self._hostImplementation.id(), state=self._state))
+            return
         self._slowReclaimCounter = 0
         if self._stateChangeCallback is not None:
             self._tftpboot.configureForLocalBoot(self._hostImplementation.primaryMACAddress())
