@@ -77,7 +77,7 @@ class HostStateMachine:
         if self._state == STATE_CHECKED_IN:
             self._provideLabel()
 
-    def _destroy(self):
+    def destroy(self):
         assert globallock.assertLocked()
         logging.info("destroying host %(host)s", dict(host=self._hostImplementation.id()))
         self._inaugurate.unregister(self._hostImplementation.id())
@@ -158,7 +158,7 @@ class HostStateMachine:
                 id=self._hostImplementation.id()))
             assert self._destroyCallback is not None
             self._destroyCallback(self)
-            self._destroy()
+            self.destroy()
             assert self._destroyCallback is None
             return
         logging.info("Node is being cold reclaimed %(id)s", dict(
