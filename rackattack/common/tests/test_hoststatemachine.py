@@ -430,14 +430,20 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedProvidedLabel, None)
         self.assertIs(self.expectedReportedState, None)
 
-    def test_softReclaimFailedWhileNotDuringQuickReclaimation(self):
-        self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
-        self.inaugurationDone()
-        self.unassignCausesSoftReclaim()
-        self.hostImplementation.expectedDestroy = True
-        self.tested.destroy()
-        self.softReclaimFailedCallback()
+    def test_softReclaimFailedWhileDestroyed(self):
+        self.callCausesColdReclaim(self.currentTimer)
+        self.callCausesColdReclaim(self.currentTimer)
+        self.expectedClearDisk = True
+        self.callCausesColdReclaim(self.currentTimer)
+        self.callCausesColdReclaim(self.currentTimer)
+        self.expectReconfigureBIOS = True
+        self.callCausesColdReclaim(self.currentTimer)
+        self.timerCausesSelfDestruct()
+        self.assertUnegisteredForInauguration(self.hostImplementation.id())
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
+        # Cannot do this using the regular flow (public methods only); this is only for 100% coverage
+        self.tested._softReclaimFailed()
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
 
     def test_vmLifeCycle_notAFreshVM(self):
         self.currentTimer = None

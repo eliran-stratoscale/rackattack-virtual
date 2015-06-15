@@ -82,9 +82,10 @@ class HostStateMachine:
         logging.info("destroying host %(host)s", dict(host=self._hostImplementation.id()))
         self._inaugurate.unregister(self._hostImplementation.id())
         self._changeState(STATE_DESTROYED)
+        self._hostImplementation.destroy()
+        self._destroyCallback(self)
         assert self._destroyCallback is not None
         self._destroyCallback = None
-        self._hostImplementation.destroy()
 
     def _inauguratorCheckedIn(self):
         assert globallock.assertLocked()
@@ -153,7 +154,6 @@ class HostStateMachine:
             logging.error("Cold reclaims retries exceeded, destroying host %(id)s", dict(
                 id=self._hostImplementation.id()))
             assert self._destroyCallback is not None
-            self._destroyCallback(self)
             self.destroy()
             assert self._destroyCallback is None
             return
