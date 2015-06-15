@@ -122,13 +122,9 @@ class HostStateMachine:
         if self._state != STATE_QUICK_RECLAIMATION_IN_PROGRESS:
             logging.warning("Ignoring soft reclamation failure, node already destroyed")
             return
-        if self._imageLabel is None:
-            currentLabelMsg = 'First time label is assigned for host. Cannot tell previous label'
-        else:
-            currentLabelMsg = 'Current label: %(label)s' % dict(label=self._imageLabel)
-        logging.warning(
-            "Soft reclaimation for host %(id)s failed, reverting to cold reclaimation. %(currentLabelMsg)s",
-            dict(id=self._hostImplementation.id(), currentLabelMsg=currentLabelMsg))
+        logging.warning("Soft reclaimation for host %(id)s failed, reverting to cold reclaimation. Previous"
+                        " label=%(previousLabel)s",
+                        dict(id=self._hostImplementation.id(), previousLabel=self._imageLabel))
         self._coldReclaim()
 
     def _provideLabel(self):
@@ -196,7 +192,12 @@ class HostStateMachine:
         if self._state not in [STATE_INAUGURATION_LABEL_PROVIDED, STATE_CHECKED_IN]:
             logging.error("Progress message in invalid state: %(state)s", dict(state=self._state))
             return
-        if self._state != STATE_INAUGURATION_LABEL_PROVIDED or u'percent' not in progress:
+        if self._state == STATE_CHECKED_IN:
+            return
+        if 'state' not in progress or 'percent' not in progress:
+            logging.error("Invalid progress message: %(progress)s", progress)
+            return
+        if progress['state'] != 'fetching':
             return
         if progress[u'percent'] != self._inaugurationProgressPercent:
             self._inaugurationProgressPercent = progress[u'percent']
