@@ -1,3 +1,4 @@
+import mock
 import unittest
 from rackattack.common import hoststatemachine
 from rackattack.common import reclaimhost
@@ -409,6 +410,85 @@ class Test(unittest.TestCase):
         self.assign("fake image label", "fake image hint")
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
+
+    def test_lateInaugurationDoneMessageDoesNotChangeState(self):
+        self.assign("fake image label", "fake image hint")
+        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.inaugurationDone()
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
+        self.doneCallback()
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
+
+    def test_checkInWhileNotReclaiming(self):
+        label = "fake image label"
+        self.assign(label, "fake image hint")
+        self.checkInCallbackProvidedLabelImmidiately(label)
+        self.assertIs(self.expectedReportedState, None)
+        self.expectedReportedState = hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED
+        self.expectedProvidedLabel = label
+        self.checkInCallback()
+        self.assertIs(self.expectedProvidedLabel, None)
+        self.assertIs(self.expectedReportedState, None)
+
+    def test_softReclaimFailedWhileNotDuringQuickReclaimation(self):
+        self.assign("fake image label", "fake image hint")
+        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.inaugurationDone()
+        self.unassignCausesSoftReclaim()
+        self.hostImplementation.expectedDestroy = True
+        self.tested.destroy()
+        self.softReclaimFailedCallback()
+
+    def test_vmLifeCycle_notAFreshVM(self):
+        self.currentTimer = None
+        self.currentTimerTag = None
+        self.checkInCallback = None
+        self.doneCallback = None
+        self.expectedDnsmasqAddIfNotAlready = True
+        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.fakeDnsmasq.addIfNotAlready = mock.Mock()
+        self.fakeTFTPBoot.configureForInaugurator = mock.Mock()
+        self.expectedColdReclaim = True
+        self.tested = hoststatemachine.HostStateMachine(
+            hostImplementation=self.hostImplementation, inaugurate=self.fakeInaugurate,
+            tftpboot=self.fakeTFTPBoot, dnsmasq=self.fakeDnsmasq, freshVMJustStarted=False)
+        self.tested.setDestroyCallback(self.destroyHost)
+        self.assertIs(self.tested.hostImplementation(), self.hostImplementation)
+        assert self.checkInCallback is not None
+        assert self.doneCallback is not None
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
+
+    def test_vmLifeCycle_inauguratorProgress(self):
+        self.assign("fake image label", "fake image hint")
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS)
+        self.cancelAllTimersByTag(self.tested)
+        self.progressCallback(dict(percent=100))
+        self.assertIs(self.currentTimerTag, None)
+        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
+        self.cancelAllTimersByTag(self.tested)
+        self.progressCallback(dict(percent=100))
+        self.assertIs(self.currentTimerTag, None)
+        self.progressCallback(dict(state='fetching', percent=100))
+        self.assertIsNot(self.currentTimerTag, None)
+        self.progressCallback(dict(state='whatisthisstate', percent=100))
+        self.assertIsNot(self.currentTimerTag, None)
+        self.inaugurationDone()
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
+        self.cancelAllTimersByTag(self.tested)
+        self.progressCallback(dict(percent=100))
+        self.assertIs(self.currentTimerTag, None)
+        self.unassignCausesSoftReclaim()
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS)
+        self.callCausesColdReclaim(self.softReclaimFailedCallback)
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
+        self.cancelAllTimersByTag(self.tested)
+        self.progressCallback(dict(percent=100))
+        self.assertIs(self.currentTimerTag, None)
+        self.checkInCallback()
+        self.cancelAllTimersByTag(self.tested)
+        self.progressCallback(dict(percent=100))
+        self.assertIs(self.currentTimerTag, None)
 
 
 if __name__ == '__main__':
