@@ -24,6 +24,7 @@ class Inaugurate:
         assert globallock.assertLocked()
         assert id in self._registered
         del self._registered[id]
+        self._server.stopListeningOnID(id)
 
     def provideLabel(self, id, label):
         logging.info("%(id)s received label '%(label)s'", dict(id=id, label=label))
