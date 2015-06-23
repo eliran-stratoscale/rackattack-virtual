@@ -4,7 +4,7 @@ After=network.target libvirtd.service
 
 [Service]
 Type=simple
-Environment='PYTHONPATH=/usr/share/rackattack.virtual/rackattack.virtual.egg'
+Environment='PYTHONPATH=/usr/share/rackattack.virtual/rackattack.virtual.egg' 'PIKA_EGG_PATH=/usr/share/rackattack.virtual/pika-commit-ref-b5539b3f.egg'
 ExecStart=/usr/bin/python -m rackattack.virtual.main
 
 [Install]

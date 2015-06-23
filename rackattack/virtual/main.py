@@ -1,3 +1,9 @@
+import os
+import sys
+assert 'PIKA_EGG_PATH' in os.environ, "User must provide a pika egg"
+sys.path.insert(0, os.environ['PIKA_EGG_PATH'])
+import pika
+assert '.egg' in pika.__file__
 import logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 from rackattack.ssh import connection
@@ -50,6 +56,7 @@ if args.managedPostMortemPacksDirectory:
 if args.rabbitMQDirectory:
     config.RABBIT_MQ_DIRECTORY = args.rabbitMQDirectory
 
+logging.info("Pika path: %(pika)s", dict(pika=pika.__file__))
 cleanup.cleanup()
 atexit.register(cleanup.cleanup)
 timer.TimersThread()

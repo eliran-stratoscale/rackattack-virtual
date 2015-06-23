@@ -27,7 +27,11 @@ build/rackattack.virtual.egg: rackattack/virtual/main.py
 	python -m upseto.packegg --entryPoint=$< --output=$@ --createDeps=$@.dep --compile_pyc --joinPythonNamespaces
 -include build/rackattack.virtual.egg.dep
 
-install: build/rackattack.virtual.egg
+install-pika:
+	-sudo mkdir /usr/share/rackattack.virtual
+	sudo cp pika-stable/pika-commit-ref-b5539b3f.egg /usr/share/rackattack.virtual
+
+install: install-pika build/rackattack.virtual.egg
 	-sudo service rackattack-virtual stop
 	-sudo systemctl stop rackattack-virtual.service
 	-sudo mkdir /usr/share/rackattack.virtual
