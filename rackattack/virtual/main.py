@@ -1,11 +1,6 @@
 import logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-from rackattack.ssh import connection
-connection.discardParamikoLogs()
-connection.discardSSHDebugMessages()
-logging.getLogger('pika').setLevel(logging.INFO)
-import time
 import argparse
+from rackattack.virtual import logconfig
 from rackattack.virtual import ipcserver
 from rackattack.virtual import buildimagethread
 from rackattack.virtual.kvm import cleanup
