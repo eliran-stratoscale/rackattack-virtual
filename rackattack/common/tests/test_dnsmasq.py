@@ -7,6 +7,36 @@ from rackattack.common import tftpboot
 import StringIO
 import os
 import signal
+import contextlib
+import fake_tempfile
+import fake_filesystem
+import fake_filesystem_glob
+import fake_filesystem_shutil
+import sys
+
+
+@contextlib.contextmanager
+def fakeFilesystem():
+    fs = fake_filesystem.FakeFilesystem()
+    fakeModules = dict(os=fake_filesystem.FakeOsModule(fs),
+                       glob=fake_filesystem_glob.FakeGlobModule(fs),
+                       path=fake_filesystem.FakePathModule(fs),
+                       shutil=fake_filesystem_shutil.FakeShutilModule(fs),
+                       tempfile=fake_tempfile.FakeTempfileModule(fs))
+    fakeFunctions = dict(open=fake_filesystem.FakeFileOpen(fs))
+    originals = dict()
+    for moduleName, fakeModule in fakeModules.iteritems():
+        __import__(moduleName)
+        originals[moduleName] = sys.modules[moduleName]
+        globals()[moduleName] = fakeModule
+    for functionName, fakeFunction in fakeFunctions.iteritems():
+        originals[functionName] = sys.modules[moduleName]
+        globals()[functionName] = fakeFunction
+    yield fs
+    for moduleName, module in originals.iteritems():
+        globals()[moduleName] = originals[moduleName]
+    for functionName, function in originals.iteritems():
+        globals()[functionName] = originals[functionName]
 
 
 @patch('os.kill')
@@ -64,6 +94,14 @@ class Test(unittest.TestCase):
         self.tested.add('11:22:33:44:55:66', '10.0.0.3')
         self.assertEquals(self.tested._hostsFile.getvalue(),
                           '11:22:33:44:55:67,10.0.0.4,infinite\n11:22:33:44:55:66,10.0.0.3,infinite')
+
+    def test_eraseLeasesFile(self, *args):
+        LEASES_FILE = "/var/lib/dnsmasq/dnsmasq.leases"
+        with fakeFilesystem() as fs:
+            fs.CreateFile(LEASES_FILE, create_missing_dirs=True)
+            import pdb; pdb.set_trace()
+            self.tested.eraseLeasesFile()
+            self.assertFalse(fs.Exists(LEASES_FILE))
 
 
 if __name__ == '__main__':
