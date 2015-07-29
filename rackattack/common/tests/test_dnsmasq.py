@@ -5,35 +5,9 @@ import subprocess
 import mock
 from rackattack.common import tftpboot
 import rackattack
-import StringIO
 import os
 import signal
-import contextlib
-
-
-def generateFilesystemMock():
-
-    class File:
-        def __init__(self, openArgs):
-            self.fileMock = StringIO.StringIO()
-            self.openArgs = openArgs
-            self.contents = None
-
-        def close(self):
-            self.contents = self.fileMock.getvalue()
-            self.fileMock.close()
-
-    files = dict()
-
-    @contextlib.contextmanager
-    def openMock(*args):
-        _file = File(args)
-        filename = args[0]
-        files[filename] = _file
-        yield _file.fileMock
-        _file.close()
-
-    return files, openMock
+from rackattack.common.tests.mockfilesystem import enableMockedFilesystem, disableMockedFilesystem
 
 
 @patch('os.kill')
@@ -46,8 +20,11 @@ class Test(unittest.TestCase):
         self.tested = DNSMasq(self.tftpBootMock, '10.0.0.1', '255.255.255.0', '10.0.0.2', '10.0.0.10',
                               gateway='10.0.0.20', nameserver='8.8.8.8', interface='eth0')
         self.tested._popen.pid = 12345
-        self.files, openMock = generateFilesystemMock()
-        rackattack.common.dnsmasq.open = openMock
+        self.fakeFilesystem = enableMockedFilesystem(rackattack.common.dnsmasq)
+        self.fakeFilesystem.CreateDirectory("/tmp")
+
+    def tearDown(self):
+        disableMockedFilesystem(rackattack.common.dnsmasq)
 
     def test_addHost(self, *args):
         self.tested.add('11:22:33:44:55:66', '10.0.0.3')
@@ -94,7 +71,7 @@ class Test(unittest.TestCase):
                           '11:22:33:44:55:67,10.0.0.4,infinite\n11:22:33:44:55:66,10.0.0.3,infinite')
 
     def getHostsFileContents(self):
-        return self.files[DNSMasq.HOSTS_FILENAME].contents
+        return self.fakeFilesystem.GetObject(DNSMasq.HOSTS_FILENAME).contents
 
 
 if __name__ == '__main__':
