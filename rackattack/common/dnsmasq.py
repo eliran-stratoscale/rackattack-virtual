@@ -10,6 +10,8 @@ import re
 
 
 class DNSMasq(threading.Thread):
+    HOSTS_FILENAME = os.path.join("/tmp", "dnsmasq.hosts")
+
     @classmethod
     def eraseLeasesFile(self):
         LEASES_FILE = '/var/lib/dnsmasq/dnsmasq.leases'
@@ -64,12 +66,11 @@ class DNSMasq(threading.Thread):
         self._interface = interface
         self._logFile = tempfile.NamedTemporaryFile(suffix=".dnsmasq.log")
         self._configFile = self._configurationFile()
-        self._hostsFile = tempfile.NamedTemporaryFile(suffix=".dnsmasq.hosts")
         self._writeHostsFile()
         self._stopped = False
         self._popen = subprocess.Popen(
             ['dnsmasq', '--no-daemon', '--listen-address=' + serverIP,
-                '--conf-file=' + self._configFile.name, '--dhcp-hostsfile=' + self._hostsFile.name],
+                '--conf-file=' + self._configFile.name, '--dhcp-hostsfile=' + self.HOSTS_FILENAME],
             stdout=self._logFile, stderr=subprocess.STDOUT, close_fds=True)
         atexit.register(self._exit)
         threading.Thread.__init__(self)
@@ -97,11 +98,9 @@ class DNSMasq(threading.Thread):
         self._reload()
 
     def _writeHostsFile(self):
-        hosts = ['%s,%s,infinite' % (mac.lower(), ip) for mac, ip in self._nodesMACIPPairs]
-        self._hostsFile.seek(0)
-        self._hostsFile.truncate()
-        self._hostsFile.write("\n".join(hosts))
-        self._hostsFile.flush()
+        with open(self.HOSTS_FILENAME, "w") as f:
+            hosts = ['%s,%s,infinite' % (mac.lower(), ip) for mac, ip in self._nodesMACIPPairs]
+            f.write("\n".join(hosts))
 
     def _configurationFile(self):
         conf = tempfile.NamedTemporaryFile(suffix=".dnsmasq.conf")
