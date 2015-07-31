@@ -22,6 +22,7 @@ class Test(unittest.TestCase):
         self.tested._popen.pid = 12345
         self.fakeFilesystem = enableMockedFilesystem(rackattack.common.dnsmasq)
         self.fakeFilesystem.CreateDirectory("/tmp")
+        self.fakeFilesystem.CreateFile(DNSMasq.LEASES_FILE, create_missing_dirs=True)
 
     def tearDown(self):
         disableMockedFilesystem(rackattack.common.dnsmasq)
@@ -69,6 +70,11 @@ class Test(unittest.TestCase):
         self.tested.add('11:22:33:44:55:66', '10.0.0.3')
         self.assertEquals(self.getHostsFileContents(),
                           '11:22:33:44:55:67,10.0.0.4,infinite\n11:22:33:44:55:66,10.0.0.3,infinite')
+
+    def test_eraseLeasesFile(self, *args):
+        self.assertTrue(self.fakeFilesystem.Exists(DNSMasq.LEASES_FILE))
+        self.tested.eraseLeasesFile()
+        self.assertFalse(self.fakeFilesystem.Exists(DNSMasq.LEASES_FILE))
 
     def getHostsFileContents(self):
         return self.fakeFilesystem.GetObject(DNSMasq.HOSTS_FILENAME).contents

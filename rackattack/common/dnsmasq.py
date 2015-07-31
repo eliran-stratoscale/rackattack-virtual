@@ -11,13 +11,13 @@ import re
 
 class DNSMasq(threading.Thread):
     HOSTS_FILENAME = os.path.join("/tmp", "dnsmasq.hosts")
+    LEASES_FILE = os.path.join("/var", "lib", "dnsmasq" "dnsmasq.leases")
 
     @classmethod
     def eraseLeasesFile(self):
-        LEASES_FILE = '/var/lib/dnsmasq/dnsmasq.leases'
-        if os.path.exists(LEASES_FILE):
+        if os.path.exists(self.LEASES_FILE):
             logging.info("Erasing old leases file")
-            os.unlink(LEASES_FILE)
+            os.unlink(self.LEASES_FILE)
 
     @classmethod
     def killAllPrevious(self):
