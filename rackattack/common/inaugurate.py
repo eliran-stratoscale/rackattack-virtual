@@ -27,7 +27,6 @@ class Inaugurate:
         self._server.stopListeningOnID(id)
 
     def provideLabel(self, id, label):
-        logging.info("%(id)s received label '%(label)s'", dict(id=id, label=label))
         with debug.logNetwork("Providing label '%(label)s' to '%(id)s'" % dict(label=label, id=id)):
             self._server.provideLabel(id=id, label=label)
 
