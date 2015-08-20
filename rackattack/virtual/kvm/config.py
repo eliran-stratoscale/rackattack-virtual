@@ -11,3 +11,5 @@ RABBIT_MQ_DIRECTORY = "/var/lib/rackattackvirtual/mq"
 ROOT_PASSWORD = "rackattack"
 ERASE_IF_IMAGE_UNUSED_FOR = 14 * 24 * 60 * 60
 IMAGE_BUILDING_VM_INDEX = 50
+RECLAMATION_REQUESTS_FIFO_PATH = "/var/lib/rackattackvirtual/reclamation_requests_fifo"
+SOFT_RECLAMATION_FAILURE_MSG_FIFO_PATH = "/var/lib/rackattackvirtual/soft_reclamations_failure_msg_fifo"

@@ -22,6 +22,7 @@ from twisted.web import server
 from rackattack.common import httprootresource
 import inaugurator.server.config
 import atexit
+from rackattack.virtual import reclaimhost
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--requestPort", default=1014, type=int)
@@ -67,13 +68,17 @@ dnsmasqInstance = dnsmasq.DNSMasq(
     gateway=network.GATEWAY_IP_ADDRESS,
     nameserver=network.GATEWAY_IP_ADDRESS,
     interface="rackattacknetbr")
+reclamationServer = reclaimhost.VirtualReclamationServer()
+reclaimHost = reclaimhost.ReclaimHost(None,
+                                      config.RECLAMATION_REQUESTS_FIFO_PATH,
+                                      config.SOFT_RECLAMATION_FAILURE_MSG_FIFO_PATH)
 for mac, ip in network.allNodesMACIPPairs():
     dnsmasqInstance.add(mac, ip)
 inaugurateInstance = inaugurate.Inaugurate(config.RABBIT_MQ_DIRECTORY)
 imageStore = imagestore.ImageStore()
 buildImageThread = buildimagethread.BuildImageThread(
     inaugurate=inaugurateInstance, tftpboot=tftpbootInstance, dnsmasq=dnsmasqInstance,
-    imageStore=imageStore)
+    imageStore=imageStore, reclaimHost=reclaimHost)
 publishInstance = publish.Publish("ampq://localhost:%d/%%2F" % inaugurator.server.config.PORT)
 allVMs = dict()
 allocationsInstance = allocations.Allocations(

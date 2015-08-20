@@ -11,16 +11,18 @@ from rackattack.common import hoststatemachine
 
 
 class BuildImageThread(threading.Thread):
-    def __init__(self, inaugurate, tftpboot, dnsmasq, imageStore):
+    def __init__(self, inaugurate, tftpboot, dnsmasq, imageStore, reclaimHost):
         self._inaugurate = inaugurate
         self._tftpboot = tftpboot
         self._dnsmasq = dnsmasq
         self._imageStore = imageStore
+        self._reclaimhost = reclaimHost
         self._busy = True
         self._queue = Queue.Queue()
         self._event = threading.Event()
         threading.Thread.__init__(self)
         self.daemon = True
+        self._reclaimHost = reclaimHost
         threading.Thread.start(self)
 
     def enqueue(self, label, sizeGB, callback):
@@ -86,7 +88,7 @@ class BuildImageThread(threading.Thread):
                     minimumDisk1SizeGB=sizeGB, minimumDisk2SizeGB=1)).__dict__
             vmInstance = vm.VM.createFromNewImage(config.IMAGE_BUILDING_VM_INDEX, requirement)
             stateMachine = hoststatemachine.HostStateMachine(
-                vmInstance, self._inaugurate, self._tftpboot, self._dnsmasq)
+                vmInstance, self._inaugurate, self._tftpboot, self._dnsmasq, self._reclaimHost)
             stateMachine.assign(self._vmChangedState, imageLabel=label, imageHint="build")
             stateMachine.setDestroyCallback(self._vmCommitedSuicide)
             return vmInstance, stateMachine

@@ -1,34 +1,13 @@
 import mock
 import unittest
 from rackattack.common import hoststatemachine
-from rackattack.common import reclaimhost
 from rackattack.common import globallock
 from rackattack.common import timer
+from rackattack.common.tests.common import FakeHost
 
 
 class Empty:
     pass
-
-
-class FakeHost:
-    def id(self):
-        return "fake id"
-
-    def primaryMACAddress(self):
-        return "fake primary mac"
-
-    def ipAddress(self):
-        return "fake ip address"
-
-    def sshCredentials(self):
-        return dict(fakeSSHCredentials=True)
-
-    def destroy(self):
-        assert self.expectedDestroy
-        self.expectedDestroy = False
-
-    def reconfigureBIOS(self):
-        pass
 
 
 class Test(unittest.TestCase):
@@ -67,15 +46,16 @@ class Test(unittest.TestCase):
         self.fakeTFTPBoot.configureForLocalBoot = self.tftpbootConfigureForLocalBoot
         self.fakeDnsmasq = Empty()
         self.fakeDnsmasq.addIfNotAlready = self.dnsmasqAddIfNotAlready
-        reclaimhost.ReclaimHost = Empty()
-        reclaimhost.ReclaimHost.cold = self.reclaimHostCold
-        reclaimhost.ReclaimHost.soft = self.reclaimHostSoft
+        self.fakeReclaimHost = Empty()
+        self.fakeReclaimHost.cold = self.reclaimHostCold
+        self.fakeReclaimHost.soft = self.reclaimHostSoft
         self.expectedTFTPBootToBeConfiguredForInaugurator = True
         self.expectedDnsmasqAddIfNotAlready = True
         self.expectedClearDisk = False
         self.tested = hoststatemachine.HostStateMachine(
             hostImplementation=self.hostImplementation,
-            inaugurate=self.fakeInaugurate, tftpboot=self.fakeTFTPBoot, dnsmasq=self.fakeDnsmasq)
+            inaugurate=self.fakeInaugurate, tftpboot=self.fakeTFTPBoot, dnsmasq=self.fakeDnsmasq,
+            reclaimHost=self.fakeReclaimHost)
         self.tested.setDestroyCallback(self.destroyHost)
         self.assertIs(self.tested.hostImplementation(), self.hostImplementation)
         self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
@@ -169,19 +149,17 @@ class Test(unittest.TestCase):
         self.assertTrue(self.expectedTFTPBootToBeConfiguredForLocalHost)
         self.expectedTFTPBootToBeConfiguredForLocalHost = False
 
-    def reclaimHostCold(self, hostImplementation, tftpboot, reconfigureBIOS=False):
+    def reclaimHostCold(self, hostImplementation, reconfigureBIOS=False):
         self.assertIs(hostImplementation, self.hostImplementation)
-        self.assertIs(tftpboot, self.fakeTFTPBoot)
         self.assertTrue(self.expectedColdReclaim)
         self.expectedColdReclaim = False
         self.assertEqual(self.expectReconfigureBIOS, reconfigureBIOS)
 
-    def reclaimHostSoft(self, hostImplementation, tftpboot, failedCallback):
+    def reclaimHostSoft(self, hostImplementation):
         self.assertIs(hostImplementation, self.hostImplementation)
-        self.assertIs(tftpboot, self.fakeTFTPBoot)
         self.assertTrue(self.expectedSoftReclaim)
         self.expectedSoftReclaim = False
-        self.softReclaimFailedCallback = failedCallback
+        self.softReclaimFailedCallback = self.tested.softReclaimFailed
 
     def checkInCallbackProvidedLabelImmidiately(self, label):
         self.assertIn(self.tested.state(), [
@@ -441,8 +419,7 @@ class Test(unittest.TestCase):
         self.timerCausesSelfDestruct()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
-        # Cannot do this using the regular flow (public methods only); this is only for 100% coverage
-        self.tested._softReclaimFailed()
+        self.tested.softReclaimFailed()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
 
     def test_vmLifeCycle_notAFreshVM(self):
@@ -457,7 +434,8 @@ class Test(unittest.TestCase):
         self.expectedColdReclaim = True
         self.tested = hoststatemachine.HostStateMachine(
             hostImplementation=self.hostImplementation, inaugurate=self.fakeInaugurate,
-            tftpboot=self.fakeTFTPBoot, dnsmasq=self.fakeDnsmasq, freshVMJustStarted=False)
+            tftpboot=self.fakeTFTPBoot, dnsmasq=self.fakeDnsmasq, freshVMJustStarted=False,
+            reclaimHost=self.fakeReclaimHost)
         self.tested.setDestroyCallback(self.destroyHost)
         self.assertIs(self.tested.hostImplementation(), self.hostImplementation)
         assert self.checkInCallback is not None
