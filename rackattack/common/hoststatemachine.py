@@ -1,6 +1,5 @@
 from rackattack.common import timer
 import logging
-from rackattack.common import reclaimhost
 from rackattack.common import globallock
 
 STATE_QUICK_RECLAIMATION_IN_PROGRESS = 1
@@ -20,7 +19,8 @@ class HostStateMachine:
     _COLD_RECLAIM_RECONFIGURE_BIOS = 4
     _COLD_RECLAIMS_RETRIES_BEFORE_CLEARING_DISK = 2
 
-    def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, freshVMJustStarted=True):
+    def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, reclaimHost,
+                 freshVMJustStarted=True):
         self._hostImplementation = hostImplementation
         self._destroyCallback = None
         self._inaugurate = inaugurate
@@ -32,6 +32,7 @@ class HostStateMachine:
         self._imageLabel = None
         self._imageHint = None
         self._inaugurationProgressPercent = 0
+        self._reclaimHost = reclaimHost
         self._inaugurate.register(
             id=hostImplementation.id(),
             checkInCallback=self._inauguratorCheckedIn,
@@ -117,7 +118,7 @@ class HostStateMachine:
             id=self._hostImplementation.id(), state=self._state))
         self._coldReclaim()
 
-    def _softReclaimFailed(self):
+    def softReclaimFailed(self):
         assert globallock.assertLocked()
         assert self._state in [STATE_QUICK_RECLAIMATION_IN_PROGRESS, STATE_DESTROYED]
         if self._state != STATE_QUICK_RECLAIMATION_IN_PROGRESS:
@@ -161,15 +162,15 @@ class HostStateMachine:
             id=self._hostImplementation.id()))
         self._configureForInaugurator(clearDisk=self._clearDiskOnSlowReclaim())
         self._changeState(STATE_SLOW_RECLAIMATION_IN_PROGRESS)
-        reclaimhost.ReclaimHost.cold(self._hostImplementation, self._tftpboot,
-                                     reconfigureBIOS=self._initializeBIOSOnSlowReclaim())
+        self._reclaimHost.cold(self._hostImplementation,
+                               reconfigureBIOS=self._initializeBIOSOnSlowReclaim())
 
     def _softReclaim(self):
         assert self._destroyCallback is not None
         logging.info("Node is being soft reclaimed %(id)s", dict(id=self._hostImplementation.id()))
         self._changeState(STATE_QUICK_RECLAIMATION_IN_PROGRESS)
         self._configureForInaugurator()
-        reclaimhost.ReclaimHost.soft(self._hostImplementation, self._tftpboot, self._softReclaimFailed)
+        self._reclaimHost.soft(self._hostImplementation)
 
     def _changeState(self, state):
         timer.cancelAllByTag(tag=self)

@@ -1,86 +1,111 @@
+import os
 import threading
 import logging
 import time
+import Queue
+import base64
+import select
+from rackattack.tcp import suicide
 from rackattack.ssh import connection
 from rackattack.common import tftpboot
 from rackattack.common import globallock
 
 
-class ReclaimHost(threading.Thread):
-    @classmethod
-    def cold(cls, hostImplementation, tftpboot, reconfigureBIOS=False):
-        cls(cold=True, hostImplementation=hostImplementation,
-            tftpboot=tftpboot, softReclaimFailedCallback=None, reconfigureBIOS=reconfigureBIOS)
+class ReclaimHostSpooler(threading.Thread):
+    READ_BUF_SIZE = 1024 ** 2
 
-    @classmethod
-    def soft(cls, hostImplementation, tftpboot, failedCallback):
-        cls(
-            cold=False, hostImplementation=hostImplementation,
-            tftpboot=tftpboot, softReclaimFailedCallback=failedCallback)
-
-    _AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN = 60 * 60 * 24
-    _COLD_RESTART_RETRIES = 5
-    _COLD_RESTART_RETRY_INTERVAL = 10
-
-    def __init__(self, cold, hostImplementation, tftpboot, softReclaimFailedCallback, reconfigureBIOS=False):
-        self._cold = cold
-        self._hostImplementation = hostImplementation
-        self._tftpboot = tftpboot
-        self._reconfigureBIOS = reconfigureBIOS
-        assert cold and softReclaimFailedCallback is None or \
-            not cold and softReclaimFailedCallback is not None
-        self._softReclaimFailedCallback = softReclaimFailedCallback
+    def __init__(self, hosts, requestFifoPath, softReclaimFailedFifoPath):
         threading.Thread.__init__(self)
         self.daemon = True
-        threading.Thread.start(self)
+        self._hosts = hosts
+        if not os.path.exists(requestFifoPath):
+            os.mkfifo(requestFifoPath)
+        if not os.path.exists(softReclaimFailedFifoPath):
+            os.mkfifo(softReclaimFailedFifoPath)
+        self._queue = Queue.Queue()
+        logging.info("Waiting for Reclamation request fifo to be open for writing...")
+        self._serverRequestFd = os.open(requestFifoPath, os.O_WRONLY)
+        logging.info("Waiting for soft-reclaim-failed message pipe to open for writing...")
+        self._softReclaimFailedFd = os.open(softReclaimFailedFifoPath, os.O_RDONLY)
+        self._notifyThreadReadFd, self._notifyThreadWriteFd = os.pipe()
+        self._poller = select.epoll()
+        self._poller.register(self._softReclaimFailedFd, eventmask=select.EPOLLIN)
+        self._poller.register(self._notifyThreadReadFd, eventmask=select.EPOLLIN)
+        self.start()
+        logging.info("Reclaim-host request spooler thread is ready.")
 
     def run(self):
-        if self._cold:
-            self._coldRestart()
-        else:
-            try:
-                self._reclaimByKexec()
-            except:
-                logging.exception("Unable to reclaim by kexec '%(id)s'", dict(
-                    id=self._hostImplementation.id()))
-                assert self._softReclaimFailedCallback is not None
-                with globallock.lock():
-                    self._softReclaimFailedCallback()
+        actions = {self._softReclaimFailedFd: self._handleSoftReclamationFailed,
+                   self._notifyThreadReadFd: self._handleReclamationRequestNotification}
+        while True:
+            events = self._poller.poll()
+            for fd, _ in events:
+                action = actions[fd]
+                try:
+                    action()
+                except Exception as e:
+                    logging.error("Error in reclamation-spooler thread: %(message)s. Commiting suicide.",
+                                  dict(message=e.message))
+                    suicide.killSelf()
+                    raise
 
-    def _coldRestart(self):
-        if self._reconfigureBIOS:
-            self._hostImplementation.reconfigureBIOS()
-        for retry in xrange(self._COLD_RESTART_RETRIES):
-            try:
-                self._hostImplementation.coldRestart()
-                return
-            except:
-                logging.exception("Unable to reclaim by cold restart '%(id)s'", dict(
-                    id=self._hostImplementation.id()))
-                time.sleep(self._COLD_RESTART_RETRY_INTERVAL)
-        raise Exception("Cold restart retries exceeded '%(id)s'" % dict(
-            id=self._hostImplementation.id()))
+    def _notifyReclamationRequest(self, host, requestType):
+        cmd = dict(_type=requestType, kwargs=dict(host=host))
+        self._queue.put(cmd)
+        os.write(self._notifyThreadWriteFd, "1")
 
-    def _reclaimByKexec(self):
-        ssh = connection.Connection(**self._hostImplementation.rootSSHCredentials())
-        ssh.connect()
-        uptime = float(ssh.ftp.getContents("/proc/uptime").split(" ")[0])
-        if uptime > self._AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN:
-            raise Exception(
-                "system '%(id)s' is up for way too long, will not kexec. doing cold restart" % dict(
-                    id=self._hostImplementation.id()))
-        try:
-            ssh.run.script("kexec -h")
-        except:
-            raise Exception("kexec does not exist on image on '%(id)s', reverting to cold restart" % dict(
-                id=self._hostImplementation.id()))
-        ssh.ftp.putFile("/tmp/vmlinuz", tftpboot.INAUGURATOR_KERNEL)
-        ssh.ftp.putFile("/tmp/initrd", tftpboot.INAUGURATOR_INITRD)
-        ssh.run.script(
-            "kexec --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" %
-            self._tftpboot.inauguratorCommandLine(
-                self._hostImplementation.id(),
-                self._hostImplementation.primaryMACAddress(),
-                self._hostImplementation.ipAddress(),
-                clearDisk=False))
-        ssh.run.backgroundScript("sleep 2; kexec -e")
+    def cold(self, host, reconfigureBIOS=False):
+        del reconfigureBIOS
+        self._notifyReclamationRequest(host, requestType="cold")
+
+    def soft(self, host):
+        self._notifyReclamationRequest(host, requestType="soft")
+
+    def _handleReclamationRequestNotification(self):
+        actions = dict(soft=self._handleSoftReclamationRequest,
+                       cold=self._handleColdReclamationRequest)
+        notificationBytes = os.read(self._notifyThreadReadFd, self.READ_BUF_SIZE)
+        nrCommands = len(notificationBytes)
+        for _ in xrange(nrCommands):
+            cmd = self._queue.get(block=True)
+            cmdType = cmd["_type"]
+            kwargs = cmd["kwargs"]
+            action = actions[cmdType]
+            action(**kwargs)
+
+    def _handleSoftReclamationRequest(self, host):
+        credentials = host.rootSSHCredentials()
+        args = [host.id(),
+                credentials["hostname"],
+                credentials["username"],
+                credentials["password"],
+                host.primaryMACAddress()]
+        self._sendRequest("soft", args)
+
+    def _sendRequest(self, _type, args):
+        args = [_type] + args
+        encodedRequest = base64.encodestring(",".join(args))
+        encodedRequest += ","
+        os.write(self._serverRequestFd, encodedRequest)
+
+    def _handleColdReclamationRequest(self, host):
+        raise NotImplementedError
+
+    def _handleSoftReclamationFailed(self):
+        hostsIDs = os.read(self._softReclaimFailedFd, self.READ_BUF_SIZE)
+        hostsIDs = hostsIDs.split(",")
+        for hostID in hostsIDs:
+            if not hostID:
+                continue
+            with globallock.lock():
+                try:
+                    host = self._hosts.byID(hostID)
+                except:
+                    logging.warn("A soft reclamation failure  notification was received for a non-existent "
+                                 "host %(hostID)s", dict(hostID=hostID))
+                    continue
+                try:
+                    host.softReclaimFailed()
+                except Exception as e:
+                    logging.error("Error handling soft reclamation failure for host %(host)s: %(message)s",
+                                  dict(host=hostID, message=e.message))
