@@ -3,37 +3,51 @@ import time
 import base64
 import select
 import logging
+import asyncio
 import argparse
-import threading
+import asyncssh
 import functools
-from rackattack.ssh import connection
 from rackattack.common import tftpboot
 
 
 logger = logging.getLogger("reclamation")
 
 
-class UptimeTooLong(Exception):
-    pass
-
-
 class KexecDoesNotExistOnHost(Exception):
     pass
 
 
-class SoftReclaim(threading.Thread):
+class MySSHClientSession(asyncssh.SSHClientSession):
+    def __init__(self):
+        self.data = None
+
+    def data_received(self, data, datatype):
+        self.data = data
+
+    def connection_lost(self, exc):
+        if exc:
+            print('SSH session error: ' + str(exc), file=sys.stderr)
+
+class MySSHClient(asyncssh.SSHClient):
+    def connection_made(self, conn):
+        print('Connection made to %s.' % conn.get_extra_info('peername')[0])
+
+    def auth_completed(self):
+        print('Authentication successful.')
+
+
+class SoftReclaim:
     _AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN = 60 * 60 * 24
     _KEXEC_CMD = "kexec"
 
     def __init__(self,
+                 inauguratorCommandLine,
+                 softReclamationFailedMsgFifoWriteFd,
                  hostID,
                  hostname,
                  username,
                  password,
-                 macAddress,
-                 inauguratorCommandLine,
-                 softReclamationFailedMsgFifoWriteFd):
-        threading.Thread.__init__(self)
+                 macAddress):
         self._inauguratorCommandLine = inauguratorCommandLine
         self._softReclamationFailedMsgFifoWriteFd = softReclamationFailedMsgFifoWriteFd
         self._hostID = hostID
@@ -41,102 +55,57 @@ class SoftReclaim(threading.Thread):
         self._username = username
         self._password = password
         self._macAddress = macAddress
-        self._connection = connection.Connection(hostname=self._hostname,
-                                                 username=self._username,
-                                                 password=self._password)
-        self.daemon = True
-        threading.Thread.start(self)
+        self._sftp = None
+        #self._connection = connection.Connection(hostname=self._hostname,
+        #                                         username=self._username,
+        #                                         password=self._password)
 
-    def run(self):
-        try:
-            self._connection.connect()
-        except:
-            logger.info("Unable to connect by ssh to '%(id)s'.", dict(id=self._hostID))
-            self._sendSoftReclaimFailedMsg()
-            return
-        try:
-            self._validateUptime()
-            self._reclaimByKexec()
-        except UptimeTooLong as e:
-            logger.error("System '%(id)s' is up for too long: %(uptime)s. Will not kexec.",
-                          dict(id=self._hostID, uptime=e.args[0]))
-            self._sendSoftReclaimFailedMsg()
-        except KexecDoesNotExistOnHost:
-            logger.error("kexec does not exist on image on '%(id)s', reverting to cold restart",
-                          dict(id=self._hostID))
-            self._sendSoftReclaimFailedMsg()
-        except Exception as e:
-            logger.error("An error has occurred during soft reclamation of '%(id)s': %(message)s",
-                          dict(id=self._hostID, message=e.message))
-            self._sendSoftReclaimFailedMsg()
-        finally:
-            self._tryToCloseConnection()
-
-    def _tryToCloseConnection(self):
-        try:
-            self._connection.close()
-        except Exception as e:
-            logger.error("Unable to close connection to '%(id)s': '%(message)s.'",
-                          dict(id=self._hostID, message=e.message))
-
-    def _validateUptime(self):
-        uptime = self._getUptime()
-        if uptime > self._AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN:
-            raise UptimeTooLong(uptime)
-
-    def _getUptime(self):
-        uptimeContents = self._connection.ftp.getContents("/proc/uptime")
-        uptimeSecondsPart = uptimeContents.split(" ")[0]
-        uptime = float(uptimeSecondsPart)
+    @asyncio.coroutine
+    def _getUptime(self, sftp):
+        uptimeFile = yield from sftp.open("/proc/uptime")
+        uptime = yield from uptimeFile.read()
+        # No need to close the file since the machine is about to reboot
+        uptime = uptime.strip()
+        uptime = uptime.split(" ")[0]
+        uptime = float(uptime)
         return uptime
 
-    def _reclaimByKexec(self):
-        try:
-            self._connection.run.script("echo -h")
-        except:
-            raise KexecDoesNotExistOnHost()
-        self._connection.ftp.putFile("/tmp/vmlinuz", tftpboot.INAUGURATOR_KERNEL)
-        self._connection.ftp.putFile("/tmp/initrd", tftpboot.INAUGURATOR_INITRD)
-        self._connection.run.script(
-            "%s --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" %
-            (self._KEXEC_CMD,
-             self._inauguratorCommandLine(self._hostID, self._macAddress, self._hostname, clearDisk=False)))
-        self._connection.run.backgroundScript("sleep 2; %s -e" % (self._KEXEC_CMD,))
+    @asyncio.coroutine
+    def _validateUptime(self, sftp):
+        uptime = yield from self._getUptime(sftp)
+        print("Uptime: %s" % (str(uptime),))
+        if uptime > self._AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN:
+            print("Uptime too long for %(hostID)s: %(uptime)s" % dict(hostID=self._hostID, uptime=uptime))
+            raise ValueError(uptime)
+
+    @asyncio.coroutine
+    def run(self):
+        print("Attempting to connect...")
+        conn, client = yield from asyncssh.create_connection(MySSHClient, '10.0.0.101',
+                                                            username="root",
+                                                            password="strato")
+        with conn:
+            sftp = yield from conn.start_sftp_client()
+            yield from self._validateUptime(sftp)
+            yield from sftp.put(tftpboot.INAUGURATOR_KERNEL, remotepath="/tmp/vmlinuz")
+            print("Done transfering vmlinuz")
+            yield from sftp.put(tftpboot.INAUGURATOR_INITRD, remotepath="/tmp/initrd")
+            print("Done transfering initrd")
+            kexecConfigCMD = "%s --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" % \
+                (self._KEXEC_CMD,
+                 self._inauguratorCommandLine(self._hostID, self._macAddress, self._hostname,
+                                              clearDisk=False))
+            chan, session = yield from conn.create_session(MySSHClientSession, kexecConfigCMD)
+            print("Done configuring kexec")
+            kexecCMD = "sleep 2; %s -e" % (self._KEXEC_CMD,)
+            chan, session = yield from conn.create_session(MySSHClientSession, kexecCMD)
+            print("Done running kexec")
 
     def _sendSoftReclaimFailedMsg(self):
         msg = "%(hostID)s," % (dict(hostID=self._hostID))
         logger.info("Sending Soft-reclamation-failed message for '%(id)s'...", dict(id=self._hostID))
         os.write(self._softReclamationFailedMsgFifoWriteFd, msg)
         logger.info("Message sent for '%(id)s'.", dict(id=self._hostID))
-
-
-class ThreadsMonitor(threading.Thread):
-    INTERVAL = 4
-
-    def __init__(self):
-        threading.Thread.__init__(self)
-        self._lock = threading.Lock()
-        self._threads = set()
-        self.start()
-
-    def add(self, _thread):
-        with self._lock:
-            self._refreshSetOfRunningThreads()
-            self._threads.add(_thread)
-        nrThreads = len(self._threads)
-        logger.info("Currently running %(nrThreads)s threads.", dict(nrThreads=nrThreads))
-
-    def _refreshSetOfRunningThreads(self):
-        assert self._lock.locked()
-        self._threads = set([_thread for _thread in self._threads if _thread.isAlive()])
-
-    def run(self):
-        while True:
-            time.sleep(self.INTERVAL)
-            with self._lock:
-                self._refreshSetOfRunningThreads()
-            nrThreads = len(self._threads)
-            logger.info("Currently running %(nrThreads)s threads.", dict(nrThreads=nrThreads))
 
 
 class InvalidRequest(Exception):
@@ -148,29 +117,57 @@ class IOLoop:
     _BUF_SIZE = 1024 ** 2
 
     def __init__(self, inauguratorCommandLine, reclamationRequestFifoPath, softReclamationFailedMsgFifoPath):
+        self._inauguratorCommandLine = inauguratorCommandLine
         self._reclamationRequestFifoPath = reclamationRequestFifoPath
         self._softReclamationFailedMsgFifoPath = softReclamationFailedMsgFifoPath
-        self._monitor = ThreadsMonitor()
-        self._requestsReadFd = None
         self._softReclamationFailedMsgFifoWriteFd = None
-        self._validateFifosExist()
-        self._openFifos()
-        self._actionTypes = dict(soft=functools.partial(
-            SoftReclaim,
-            inauguratorCommandLine=inauguratorCommandLine,
-            softReclamationFailedMsgFifoWriteFd=self._softReclamationFailedMsgFifoWriteFd))
+        self._fifos = dict(requests=dict(path=reclamationRequestFifoPath, fd=None),
+                           softReclamationFailedMsg=dict(path=softReclamationFailedMsgFifoPath, fd=None))
+        self._openForReading("requests")
+        self._openForWriting("softReclamationFailedMsg")
+        self._actionTypes = dict(soft=functools.partial(self._softReclaim, inauguratorCommandLine, self._fifos["softReclamationFailedMsg"]["fd"]))
+        self._loop = asyncio.get_event_loop()
 
     def registerAction(self, _type, callback):
         assert _type not in self._actionTypes
         self._actionTypes[_type] = callback
 
     def run(self):
-        while True:
-            logger.info("Waiting for requests...")
-            requests = self._readRequestsFromPipe()
+        self._loop.add_reader(self._fifos["requests"]["fd"], functools.partial(self._reader, "requests", self._processDataFromRequestsPipe))
+        self._loop.run_forever()
+        self._cleanup()
+
+    def _reader(self, fifoName, processDataCoroutine):
+        fd = self._fifos[fifoName]["fd"]
+        data = os.read(fd, self._BUF_SIZE)
+        if data:
+            print("Received from pipe:", data.decode())
+            self._loop.create_task(processDataCoroutine(data))
+        else:
+            self._handleFifoEOF(fifoName)
+
+    def _handleFifoEOF(self, fifoName, processDataCoroutine):
+        fd = self._fifos[fifoName]["fd"]
+        self._loop.remove_reader(fd)
+        os.close(fd)
+        self._openForReading(fifoName)
+        loop.add_reader(fd, functools.partial(reader, fifoName, self._processDataFromRequestePipe))
+
+    @asyncio.coroutine
+    def _processDataFromRequestsPipe(self, data):
+        encodedRequests = data.strip(" ,".encode("utf-8"))
+        requests = self._decodeRequests(encodedRequests)
+        if requests is not None:
             for actionType, args in requests:
                 self._executeRequest(actionType, args)
-        self._cleanup()
+
+    @asyncio.coroutine
+    def _softReclaim(self, inauguratorCommandLine, softReclamationFailedMsgFifoWriteFd, *args, **kwargs):
+        softReclaim = SoftReclaim(_inauguratorCommandLine,
+                                  softReclamationFailedMsgFifoWriteFd,
+                                  *args,
+                                  **kwargs)
+        yield from softReclaim.run()
 
     def _decodeRequest(self, request):
         try:
@@ -180,6 +177,7 @@ class IOLoop:
         except:
             logger.error("Could not decode request's base64: %(request)s", dict(request=request))
             raise InvalidRequest(request)
+        request = request.decode("utf-8")
         request = request.split(",")
         try:
             actionType = request[0]
@@ -193,7 +191,7 @@ class IOLoop:
         return actionType, args
 
     def _decodeRequests(self, encodedRequests):
-        encodedRequests = encodedRequests.split(",")
+        encodedRequests = encodedRequests.split(",".encode("utf-8"))
         for encodedRequest in encodedRequests:
             try:
                 decodedRequest = self._decodeRequest(encodedRequest)
@@ -201,44 +199,26 @@ class IOLoop:
                 continue
             yield decodedRequest
 
-    def _validateFifosExist(self):
-        logger.info("Validating fifos exist.")
-        fifos = (self._reclamationRequestFifoPath, self._softReclamationFailedMsgFifoPath)
-        for fifo in fifos:
-            if not os.path.exists(fifo):
-                os.mkfifo(fifo)
+    def _validateFifoExists(self, _path):
+        logger.info("Validating fifo %(_path)s exist.", dict(_path=_path))
+        if not os.path.exists(_path):
+            os.mkfifo(_path, mode=0o777)
 
-    def _openFifos(self):
-        self._openRequestsFifo()
-        self._openSoftReclaimFailureMessageFifo()
-
-    def _openRequestsFifo(self):
-        logger.info("Opening request fifo for reading...")
-        self._requestsReadFd = os.open(self._reclamationRequestFifoPath, os.O_RDONLY)
+    def _openForReading(self, fifoName):
+        fifo = self._fifos[fifoName]
+        _path = fifo["path"]
+        self._validateFifoExists(_path)
+        logger.info("Opening %(_path)s for reading...", dict(_path=_path))
+        fifo["fd"] = os.open(fifo["path"], os.O_RDONLY | os.O_NONBLOCK)
         logger.info("Fifo open.")
 
-    def _openSoftReclaimFailureMessageFifo(self):
-        logger.info("Opening soft-reclaim-failure message fifo for reading...")
-        self._softReclamationFailedMsgFifoWriteFd = os.open(self._softReclamationFailedMsgFifoPath,
-                                                            os.O_WRONLY)
+    def _openForWriting(self, fifoName):
+        fifo = self._fifos[fifoName]
+        _path = fifo["path"]
+        self._validateFifoExists(_path)
+        logger.info("Opening %(_path)s for writing...", dict(_path=_path))
+        fifo["fd"] = os.open(fifo["path"], os.O_WRONLY)
         logger.info("Fifo open.")
-
-    def _handleEmptyStringFromPipe(self):
-        os.close(self._requestsReadFd)
-        logger.info("Reopening requests queue...")
-        self._openRequestsFifo()
-
-    def _readRequestsFromPipe(self):
-        encoded = ""
-        while not encoded:
-            encoded = os.read(self._requestsReadFd, self._BUF_SIZE)
-            if not encoded:
-                self._handleEmptyStringFromPipe()
-                continue
-            encoded = encoded.strip(" ,")
-            decoded = self._decodeRequests(encoded)
-        for actionType, args in decoded:
-            yield actionType, args
 
     def _cleanup(self):
         os.close(self._softReclamationFailedMsgFifoWriteFd)
@@ -249,9 +229,7 @@ class IOLoop:
         logger.info("Executing command %(command)s with args %(args)s",
                      dict(command=actionType, args=args))
         try:
-            callback = action(*args)
-            if isinstance(callback, threading.Thread):
-                self._monitor.add(callback)
+            self._loop.create_task(action(*args))
         except Exception as e:
             logger.error("An error has occurred while executing request: %(message)s",
-                          dict(message=e.message))
+                          dict(message=str(e)))
