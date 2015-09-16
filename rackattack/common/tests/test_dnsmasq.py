@@ -14,15 +14,15 @@ from rackattack.common.tests.mockfilesystem import enableMockedFilesystem, disab
 class Test(unittest.TestCase):
 
     def setUp(self):
+        self.fakeFilesystem = enableMockedFilesystem(rackattack.common.dnsmasq)
+        self.fakeFilesystem.CreateDirectory("/tmp")
+        self.fakeFilesystem.CreateFile(DNSMasq.LEASES_FILE, create_missing_dirs=True)
         subprocess.Popen = mock.MagicMock(spec=subprocess.Popen)
         self.tftpBootMock = mock.Mock(tftpboot.TFTPBoot)
         DNSMasq.run = lambda x: None
         self.tested = DNSMasq(self.tftpBootMock, '10.0.0.1', '255.255.255.0', '10.0.0.2', '10.0.0.10',
                               gateway='10.0.0.20', nameserver='8.8.8.8', interface='eth0')
         self.tested._popen.pid = 12345
-        self.fakeFilesystem = enableMockedFilesystem(rackattack.common.dnsmasq)
-        self.fakeFilesystem.CreateDirectory("/tmp")
-        self.fakeFilesystem.CreateFile(DNSMasq.LEASES_FILE, create_missing_dirs=True)
 
     def tearDown(self):
         disableMockedFilesystem(rackattack.common.dnsmasq)
