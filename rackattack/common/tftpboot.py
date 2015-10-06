@@ -131,5 +131,6 @@ _INAUGURATOR_COMMAND_LINE = \
     "--inauguratorServerAMQPURL=amqp://guest:guest@%(inauguratorServerIP)s:%(inauguratorServerPort)s/%%2F " \
     "--inauguratorMyIDForServer=%(id)s " \
     "--inauguratorIPAddress=%(ipAddress)s " \
+    "--inauguratorIgnoreDirs=/destRoot/var/lib/inaugurator " \
     "--inauguratorNetmask=%(netmask)s --inauguratorGateway=%(inauguratorGatewayIP)s " \
     "--inauguratorChangeRootPassword=%(rootPassword)s"

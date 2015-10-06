@@ -15,6 +15,7 @@ class UptimeTooLong(Exception):
 class SoftReclaim(threading.Thread):
     _AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN = 60 * 60 * 24
     _KEXEC_CMD = "kexec"
+    _INAUGURATOR_DIRPATH = "/var/lib/inaugurator"
 
     def __init__(self,
                  hostID,
@@ -39,6 +40,8 @@ class SoftReclaim(threading.Thread):
         self._connection = connection.Connection(hostname=self._hostname,
                                                  username=self._username,
                                                  password=self._password)
+        self._inauguratorKernelPath = os.path.join(self._INAUGURATOR_DIRPATH, "vmlinuz")
+        self._inauguratorInitRDPath = os.path.join(self._INAUGURATOR_DIRPATH, "initrd")
         self.daemon = True
         threading.Thread.start(self)
 
@@ -82,11 +85,23 @@ class SoftReclaim(threading.Thread):
         return uptime
 
     def _reclaimByKexec(self):
-        self._connection.ftp.putContents("/tmp/vmlinuz", self._inauguratorKernel)
-        self._connection.ftp.putContents("/tmp/initrd", self._inauguratorInitRD)
+        try:
+            print self._connection.run.script("ls %(inauguratorKernelPath)s %(inauguratorInitRDPath)s" %
+                                            dict(inauguratorKernelPath=self._inauguratorKernelPath,
+                                                 inauguratorInitRDPath=self._inauguratorInitRDPath))
+            raise ValueError()
+            logger.info("Host %(hostID)s has the inaugurator image in its cache", dict(hostID=self._hostID))
+        except:
+            logger.info("Transferring inaugurator to %(hostID)s by FTP", dict(hostID=self._hostID))
+            print self._connection.run.script("mkdir -p %s" % (self._INAUGURATOR_DIRPATH,))
+            print self._connection.ftp.putContents(self._inauguratorKernelPath, self._inauguratorKernel)
+            print self._connection.ftp.putContents(self._inauguratorInitRDPath, self._inauguratorInitRD)
+            logger.info("Done transferring inaugurator to %(hostID)s by FTP.", dict(hostID=self._hostID))
         self._connection.run.script(
-            "%s --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" %
+            "%s --load %s --initrd=%s --append='%s'" %
             (self._KEXEC_CMD,
+             self._inauguratorKernelPath,
+             self._inauguratorInitRDPath,
              self._inauguratorCommandLine(self._hostID, self._macAddress, self._hostname, clearDisk=False)))
         self._connection.run.backgroundScript("sleep 2; %s -e" % (self._KEXEC_CMD,))
 
