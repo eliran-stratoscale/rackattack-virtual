@@ -24,14 +24,18 @@ class ReclaimHostSpooler(threading.Thread):
                                          cold=self._handleColdReclamationRequest)
         self._notifyThreadReadFd = None
         self._notifyThreadWriteFd = None
+        self._isReady = threading.Event()
         self.start()
+        logging.info("Reclaim-Host-Spooler is waiting for fifos to be set up...")
+        self._isReady.wait()
+        logging.info("Reclaim-Host-Spooler is ready.")
 
     def run(self):
         self._setupFifos()
         poller = self._generatePoller()
         actions = {self._softReclaimFailedFd: self._handleSoftReclamationFailedMsg,
                    self._notifyThreadReadFd: self._handleReclamationRequest}
-        logging.info("Reclaim-host request spooler thread is ready.")
+        self._isReady.set()
         while True:
             events = poller.poll()
             for fd, _ in events:

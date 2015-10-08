@@ -55,7 +55,10 @@ class EpollEventLoopTestCase(unittest.TestCase):
         origSelectEpoll = select.epoll
         self._threads = set()
         try:
-            threading.Thread.__init__ = self._threadInitRegisterThreadWrapper
+            self._moduleInWhichToSetupMocks.threading.Thread.__init__ = \
+                self._threadInitRegisterThreadWrapper
+            self._moduleInWhichToSetupMocks.threading.Thread.daemon = mock.Mock()
+            self._moduleInWhichToSetupMocks.threading.Event = mock.Mock()
             threading.Thread.start = mock.Mock()
             instance = self._generateTestedInstance()
         finally:
