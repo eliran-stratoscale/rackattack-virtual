@@ -15,13 +15,15 @@ class ReclaimHostSpooler(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self._hosts = hosts
-        self._reclamationRequestFd = requestFifoPath
+        self._reclamationRequestFifoPath = requestFifoPath
         self._softReclaimFailedMsgFifoPath = softReclaimFailedMsgFifoPath
-        self._serverRequestFd = None
+        self._reclamationRequestFd = None
         self._softReclaimFailedFd = None
         self._queue = Queue.Queue()
         self._reclamationHandlers = dict(soft=self._handleSoftReclamationRequest,
                                          cold=self._handleColdReclamationRequest)
+        self._notifyThreadReadFd = None
+        self._notifyThreadWriteFd = None
         self.start()
 
     def run(self):
@@ -55,10 +57,10 @@ class ReclaimHostSpooler(threading.Thread):
             os.mkfifo(path)
 
     def _setupFifos(self):
-        self._validateFifoExists(self._reclamationRequestFd)
+        self._validateFifoExists(self._reclamationRequestFifoPath)
         logging.info("Waiting for Reclamation request fifo to be open for writing...")
-        assert self._serverRequestFd is None
-        self._serverRequestFd = os.open(self._reclamationRequestFd, os.O_WRONLY)
+        assert self._reclamationRequestFd is None
+        self._reclamationRequestFd = os.open(self._reclamationRequestFifoPath, os.O_WRONLY)
         self._validateFifoExists(self._softReclaimFailedMsgFifoPath)
         logging.info("Waiting for soft-reclaim-failed message pipe to open for writing...")
         assert self._softReclaimFailedFd is None
@@ -100,7 +102,7 @@ class ReclaimHostSpooler(threading.Thread):
         args = [_type] + args
         encodedRequest = base64.encodestring(",".join(args))
         encodedRequest += ","
-        os.write(self._serverRequestFd, encodedRequest)
+        os.write(self._reclamationRequestFd, encodedRequest)
 
     def _handleColdReclamationRequest(self, host):
         raise NotImplementedError
