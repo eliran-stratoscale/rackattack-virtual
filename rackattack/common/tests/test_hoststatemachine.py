@@ -52,6 +52,7 @@ class Test(unittest.TestCase):
         self.expectedTFTPBootToBeConfiguredForInaugurator = True
         self.expectedDnsmasqAddIfNotAlready = True
         self.expectedClearDisk = False
+        hoststatemachine.HostStateMachine.ALLOW_CLEARING_OF_DISK = True
         self.tested = hoststatemachine.HostStateMachine(
             hostImplementation=self.hostImplementation,
             inaugurate=self.fakeInaugurate, tftpboot=self.fakeTFTPBoot, dnsmasq=self.fakeDnsmasq,
@@ -474,6 +475,13 @@ class Test(unittest.TestCase):
         self.progressCallback(dict(percent=100))
         self.assertIs(self.currentTimerTag, None)
 
+    def test_ClearingOfDiskNotAllowed(self):
+        hoststatemachine.HostStateMachine.ALLOW_CLEARING_OF_DISK = False
+        self.expectedClearDisk = False
+        self.callCausesColdReclaim(self.currentTimer)
+        self.callCausesColdReclaim(self.currentTimer)
+        self.callCausesColdReclaim(self.currentTimer)
+        self.callCausesColdReclaim(self.currentTimer)
 
 if __name__ == '__main__':
     unittest.main()
