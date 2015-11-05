@@ -13,19 +13,21 @@ fakeModules["os.path"] = fake_filesystem.FakePathModule
 fakeFunctions = dict(open=fake_filesystem.FakeFileOpen)
 
 
-def enableMockedFilesystem(testedModule):
+def enableMockedFilesystem(*testedModules):
     fakeFilesystem = fake_filesystem.FakeFilesystem()
-    for moduleName, fakeModuleGenerationMethod in fakeModules.iteritems():
-        fakeModule = fakeModuleGenerationMethod(fakeFilesystem)
-        setattr(testedModule, moduleName, fakeModule)
-    for functionName, fakeFunctionGenerationMethod in fakeFunctions.iteritems():
-        fakeFunction = fakeFunctionGenerationMethod(fakeFilesystem)
-        setattr(testedModule, functionName, fakeFunction)
+    for testedModule in testedModules:
+        for moduleName, fakeModuleGenerationMethod in fakeModules.iteritems():
+            fakeModule = fakeModuleGenerationMethod(fakeFilesystem)
+            setattr(testedModule, moduleName, fakeModule)
+        for functionName, fakeFunctionGenerationMethod in fakeFunctions.iteritems():
+            fakeFunction = fakeFunctionGenerationMethod(fakeFilesystem)
+            setattr(testedModule, functionName, fakeFunction)
     return fakeFilesystem
 
 
-def disableMockedFilesystem(testedModule):
-    for moduleName in fakeModules:
-        setattr(testedModule, moduleName, sys.modules[moduleName])
-    for functionName in fakeFunctions:
-        setattr(testedModule, functionName, getattr(sys.modules["__builtin__"], functionName))
+def disableMockedFilesystem(*testedModules):
+    for testedModule in testedModules:
+        for moduleName in fakeModules:
+            setattr(testedModule, moduleName, sys.modules[moduleName])
+        for functionName in fakeFunctions:
+            setattr(testedModule, functionName, getattr(sys.modules["__builtin__"], functionName))

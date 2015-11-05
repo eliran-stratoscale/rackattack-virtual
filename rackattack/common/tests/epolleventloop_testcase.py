@@ -3,6 +3,7 @@ import select
 import greenlet
 import unittest
 import threading
+from rackattack.common import createfifos
 from rackattack.common.tests import mockpipes
 from rackattack.common.tests import mockfilesystem
 from rackattack.common.tests.fakeepoll import FakeEpoll
@@ -12,15 +13,17 @@ class EpollEventLoopTestCase(unittest.TestCase):
     def setUp(self, moduleInWhichToSetupMocks):
         super(EpollEventLoopTestCase, self).setUp()
         self._moduleInWhichToSetupMocks = moduleInWhichToSetupMocks
-        self._fakeFilesystem = mockfilesystem.enableMockedFilesystem(self._moduleInWhichToSetupMocks)
-        self._pipeMethodsMock = mockpipes.enable(self._moduleInWhichToSetupMocks, self._fakeFilesystem)
+        self._fakeFilesystem = mockfilesystem.enableMockedFilesystem(self._moduleInWhichToSetupMocks,
+                                                                     createfifos)
+        self._pipeMethodsMock = mockpipes.enable([self._moduleInWhichToSetupMocks, createfifos],
+                                                 self._fakeFilesystem)
         self._moduleInWhichToSetupMocks.select.epoll = self._selectEpollWrapper
         self._poller = None
         self._origPollerPoll = None
 
     def tearDown(self):
-        mockpipes.disable(self._moduleInWhichToSetupMocks)
-        mockfilesystem.disableMockedFilesystem(self._moduleInWhichToSetupMocks)
+        mockpipes.disable(self._moduleInWhichToSetupMocks, createfifos)
+        mockfilesystem.disableMockedFilesystem(self._moduleInWhichToSetupMocks, createfifos)
         super(EpollEventLoopTestCase, self).tearDown()
 
     def _continueWithEventLoop(self):

@@ -56,27 +56,33 @@ class FakePipeMethods:
     origOsPipe = os.pipe
     origSelectEpoll = select.epoll
 
-    def __init__(self, moduleInWhichToSetupMocks, fakeFilesystem):
+    def __init__(self, modulesInWhichToSetupMocks, fakeFilesystem):
         self.fakePipes = list()
         self._fakeFilesystem = fakeFilesystem
-        self._enable(moduleInWhichToSetupMocks)
+        self._enable(modulesInWhichToSetupMocks)
 
     @classmethod
-    def disable(cls, moduleInWhichToRestoreMethods):
-        moduleInWhichToRestoreMethods.os.open = cls.origOsOpen
-        moduleInWhichToRestoreMethods.os.write = cls.origOsWrite
-        moduleInWhichToRestoreMethods.os.read = cls.origOsRead
-        moduleInWhichToRestoreMethods.os.mkfifo = cls.origOsMkfifo
-        moduleInWhichToRestoreMethods.os.pipe = cls.origOsPipe
-        moduleInWhichToRestoreMethods.select.epoll = cls.origSelectEpoll
+    def disable(cls, modulesInWhichToRestoreMethods):
+        for module in modulesInWhichToRestoreMethods:
+            if hasattr(module, 'os'):
+                module.os.open = cls.origOsOpen
+                module.os.write = cls.origOsWrite
+                module.os.read = cls.origOsRead
+                module.os.mkfifo = cls.origOsMkfifo
+                module.os.pipe = cls.origOsPipe
+            if hasattr(module, 'select'):
+                module.select.epoll = cls.origSelectEpoll
 
-    def _enable(self, moduleInWhichToSetupMocks):
-        moduleInWhichToSetupMocks.os.open = self.osOpen
-        moduleInWhichToSetupMocks.os.write = self.osWrite
-        moduleInWhichToSetupMocks.os.read = self.osRead
-        moduleInWhichToSetupMocks.os.mkfifo = self.osMkfifo
-        moduleInWhichToSetupMocks.os.pipe = self.osPipe
-        moduleInWhichToSetupMocks.select.epoll = self.selectEpoll
+    def _enable(self, modulesInWhichToSetupMocks):
+        for module in modulesInWhichToSetupMocks:
+            if hasattr(module, 'os'):
+                module.os.open = self.osOpen
+                module.os.write = self.osWrite
+                module.os.read = self.osRead
+                module.os.mkfifo = self.osMkfifo
+                module.os.pipe = self.osPipe
+            if hasattr(module, 'select'):
+                module.select.epoll = self.selectEpoll
 
     def osWrite(self, fd, content):
         fifo = self.getPipeByWriteFd(fd)

@@ -5,7 +5,7 @@ import Queue
 import base64
 import select
 from rackattack.tcp import suicide
-from rackattack.common import globallock
+from rackattack.common import globallock, createfifos
 
 
 class ReclaimHostSpooler(threading.Thread):
@@ -55,17 +55,12 @@ class ReclaimHostSpooler(threading.Thread):
     def soft(self, host):
         self._notifyReclamationRequest(host, requestType="soft")
 
-    @classmethod
-    def _validateFifoExists(self, path):
-        if not os.path.exists(path):
-            os.mkfifo(path)
-
     def _setupFifos(self):
-        self._validateFifoExists(self._reclamationRequestFifoPath)
+        createfifos.validateFifoExists(self._reclamationRequestFifoPath)
         logging.info("Waiting for Reclamation request fifo to be open for writing...")
         assert self._reclamationRequestFd is None
         self._reclamationRequestFd = os.open(self._reclamationRequestFifoPath, os.O_WRONLY)
-        self._validateFifoExists(self._softReclaimFailedMsgFifoPath)
+        createfifos.validateFifoExists(self._softReclaimFailedMsgFifoPath)
         logging.info("Waiting for soft-reclaim-failed message pipe to open for writing...")
         assert self._softReclaimFailedFd is None
         self._softReclaimFailedFd = os.open(self._softReclaimFailedMsgFifoPath, os.O_RDONLY)

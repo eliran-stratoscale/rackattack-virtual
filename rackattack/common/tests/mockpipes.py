@@ -2,10 +2,10 @@ import os
 from rackattack.common.tests.fakepipes import FakePipeMethods, FakePipe, FakeNamedPipe
 
 
-def enable(moduleInWhichToSetupMocks, fakeFilesystem):
-    methodsMock = FakePipeMethods(moduleInWhichToSetupMocks, fakeFilesystem)
+def enable(modulesInWhichToSetupMocks, fakeFilesystem):
+    methodsMock = FakePipeMethods(modulesInWhichToSetupMocks, fakeFilesystem)
     return methodsMock
 
 
-def disable(moduleInWhichToRestoreMethods):
+def disable(*moduleInWhichToRestoreMethods):
     FakePipeMethods.disable(moduleInWhichToRestoreMethods)

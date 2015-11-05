@@ -19,8 +19,8 @@ class ReclaimHostTest(EpollEventLoopTestCase):
         self._hosts.add(self._hostStateMachine)
         self._tftpboot = FakeTFTPBoot()
         self._wasThereAnAttemptToCreateFifo = False
-        self._fakeSoftReclaimRequestFifoPath = "fakeNotifyFifoPath"
-        self._fakeSoftReclaimFailedFifoPath = "fakeSoftReclaimFailedFifoPath"
+        self._fakeSoftReclaimRequestFifoPath = "/fakeNotifyFifoPath"
+        self._fakeSoftReclaimFailedFifoPath = "/fakeSoftReclaimFailedFifoPath"
         self._origKillSelf = reclaimhostspooler.suicide.killSelf
         reclaimhostspooler.suicide.killSelf = mock.Mock()
 

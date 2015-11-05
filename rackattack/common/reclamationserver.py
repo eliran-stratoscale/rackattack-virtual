@@ -3,7 +3,7 @@ import base64
 import logging
 import threading
 import functools
-from rackattack.common import tftpboot, softreclaim
+from rackattack.common import tftpboot, softreclaim, createfifos
 
 
 logger = logging.getLogger("reclamation")
@@ -145,8 +145,7 @@ class ReclamationServer:
         logger.info("Validating fifos exist.")
         fifos = (self._reclamationRequestFifoPath, self._softReclamationFailedMsgFifoPath)
         for fifo in fifos:
-            if not os.path.exists(fifo):
-                os.mkfifo(fifo)
+            createfifos.validateFifoExists(fifo)
 
     def _openFifos(self):
         self._openRequestsFifo()
