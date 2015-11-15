@@ -5,7 +5,7 @@ clean:
 
 UNITTESTS=$(shell find rackattack -name 'test_*.py' | sed 's@/@.@g' | sed 's/\(.*\)\.py/\1/' | sort)
 COVERED_FILES=rackattack/common/hoststatemachine.py,rackattack/common/hosts.py,rackattack/common/dnsmasq.py,rackattack/common/inaugurate.py,rackattack/common/reclaimhostspooler.py
-unittest:
+unittest: validate_requirements
 	UPSETO_JOIN_PYTHON_NAMESPACES=Yes PYTHONPATH=. python -m coverage run -m unittest $(UNITTESTS)
 	python -m coverage report --show-missing --rcfile=coverage.config --fail-under=77 --include=$(COVERED_FILES)
 
@@ -20,7 +20,7 @@ check_convention:
 	pep8 rackattack --max-line-length=109
 
 .PHONY: build
-build: build/rackattack.virtual.egg
+build: validate_requirements build/rackattack.virtual.egg
 
 build/rackattack.virtual.egg: rackattack/virtual/main.py
 	-mkdir $(@D)
@@ -52,3 +52,15 @@ uninstall:
 
 prepareForCleanBuild:
 	cd ../upseto ; make install
+
+.PHONY: validate_requirements
+REQUIREMENTS_FULFILLED = $(shell upseto checkRequirements 2> /dev/null; echo $$?)
+validate_requirements:
+ifneq ($(SKIP_REQUIREMENTS),1)
+	sudo pip install -r requirements.txt
+	sudo pip install -r ../rackattack-api/requirements.txt
+ifeq ($(REQUIREMENTS_FULFILLED),1)
+	$(error Upseto requirements not fulfilled. Run with SKIP_REQUIREMENTS=1 to skip requirements validation.)
+	exit 1
+endif
+endif

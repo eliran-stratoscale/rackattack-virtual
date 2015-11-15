@@ -1,0 +1,8 @@
+pika>=0.10.0
+paramiko
+coverage
+upseto
+pyfakefs
+mock
+simplejson
+inaugurator>=1.1
