@@ -103,4 +103,5 @@ root = httprootresource.HTTPRootResource(
 reactor.listenTCP(args.httpPort, server.Site(root))
 reactor.listenTCP(args.requestPort, transportserver.TransportFactory(ipcServer.handle))
 logging.info("Virtual RackAttack up and running")
+logging.getLogger("network").setLevel(logging.INFO)
 reactor.run()
