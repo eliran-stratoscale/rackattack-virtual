@@ -76,7 +76,7 @@ _TEMPLATE = """
   <currentMemory unit='KiB'>%(memoryKB)d</currentMemory>
   <vcpu placement='static'>%(vcpus)d</vcpu>
   <os>
-    <type arch='x86_64' machine='pc-i440fx-1.4'>hvm</type>
+    <type arch='x86_64' machine='pc'>hvm</type>
     <boot dev='%(bootDevice)s'/>
   </os>
   <features>
