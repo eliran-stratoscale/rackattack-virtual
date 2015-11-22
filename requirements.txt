@@ -7,3 +7,4 @@ mock
 simplejson
 inaugurator>=1.1
 libvirt-python
+pep8
