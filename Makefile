@@ -27,7 +27,7 @@ build/rackattack.virtual.egg: rackattack/virtual/main.py
 	python -m upseto.packegg --entryPoint=$< --output=$@ --createDeps=$@.dep --compile_pyc --joinPythonNamespaces
 -include build/rackattack.virtual.egg.dep
 
-install: build/rackattack.virtual.egg
+install: validate_requirements build/rackattack.virtual.egg
 	-sudo service rackattack-virtual stop
 	-sudo systemctl stop rackattack-virtual.service
 	-sudo mkdir /usr/share/rackattack.virtual
@@ -37,7 +37,7 @@ install: build/rackattack.virtual.egg
 install_service_systemd:
 	sudo cp rackattack-virtual.service /usr/lib/systemd/system/rackattack-virtual.service
 	sudo systemctl enable rackattack-virtual.service
-	if ["$(DONT_START_SERVICE)" == ""]; then sudo systemctl start rackattack-virtual; fi
+	if ["$(DONT_START_SERVICE)" == ""]; then sudo systemctl restart libvirtd; sudo systemctl start rackattack-virtual; fi
 
 install_service_upstart:
 	sudo cp upstart_rackattack-virtual.conf /etc/init/rackattack-virtual.conf
@@ -57,6 +57,7 @@ prepareForCleanBuild:
 REQUIREMENTS_FULFILLED = $(shell upseto checkRequirements 2> /dev/null; echo $$?)
 validate_requirements:
 ifneq ($(SKIP_REQUIREMENTS),1)
+	./validate_packages_prerequisites.sh
 	sudo pip install -r requirements.txt
 	sudo pip install -r ../rackattack-api/requirements.txt
 ifeq ($(REQUIREMENTS_FULFILLED),1)
