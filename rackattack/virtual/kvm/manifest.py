@@ -1,3 +1,4 @@
+import os.path
 import xmltodict
 from rackattack.virtual.kvm import config
 
@@ -32,6 +33,14 @@ class Manifest:
         return self._dict['domain']['devices']['disk'][1]['source']['@file']
 
     @classmethod
+    def _findEmulatorPath(cls):
+        possiblePaths = ("/usr/bin/qemu-kvm", "/usr/libexec/qemu-kvm")
+        for _path in possiblePaths:
+            if os.path.exists(_path):
+                return _path
+        return Exception("No QEMU-KVM emulator found")
+
+    @classmethod
     def create(cls,
                name,
                memoryMB,
@@ -46,6 +55,7 @@ class Manifest:
         assert name.startswith(config.DOMAIN_PREFIX)
         assert memoryMB > 0
         assert vcpus >= 1
+        emulatorPath = cls._findEmulatorPath()
         return cls(_TEMPLATE % dict(
             name=name,
             memoryKB=memoryMB * 1024,
@@ -56,7 +66,8 @@ class Manifest:
             secondaryMACAddress=secondaryMACAddress,
             networkName=config.NETWORK_NAME,
             serialOutputFilename=serialOutputFilename,
-            bootDevice='network' if bootFromNetwork else 'hd'))
+            bootDevice='network' if bootFromNetwork else 'hd',
+            emulatorPath=emulatorPath))
 
 _TEMPLATE = """
 <domain type='kvm'>
@@ -81,7 +92,7 @@ _TEMPLATE = """
   <on_reboot>restart</on_reboot>
   <on_crash>restart</on_crash>
   <devices>
-    <emulator>/usr/bin/qemu-kvm</emulator>
+    <emulator>%(emulatorPath)s</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='qcow2' cache='writeback' io='threads'/>
       <source file='%(disk1Image)s'/>
