@@ -32,10 +32,11 @@ install: validate_requirements build/rackattack.virtual.egg
 	-sudo systemctl stop rackattack-virtual.service
 	-sudo mkdir /usr/share/rackattack.virtual
 	sudo cp build/rackattack.virtual.egg /usr/share/rackattack.virtual
-	if grep -i ubuntu /etc/os-release >/dev/null 2>/dev/null; then make install_service_upstart; else make install_service_systemd; fi
+	make install_service_`python get_system_setting.py systemManager`
 
 install_service_systemd:
-	sudo cp rackattack-virtual.service /usr/lib/systemd/system/rackattack-virtual.service
+	$(eval SERVICE_FILES_DIRPATH := $(shell python get_system_setting.py serviceFilesDirPath))
+	sudo cp rackattack-virtual.service ${SERVICE_FILES_DIRPATH}/rackattack-virtual.service
 	sudo systemctl enable rackattack-virtual.service
 	if ["$(DONT_START_SERVICE)" == ""]; then sudo systemctl restart libvirtd; sudo systemctl start rackattack-virtual; fi
 
