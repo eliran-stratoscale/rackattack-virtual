@@ -34,7 +34,7 @@ class Manifest:
 
     @classmethod
     def _findEmulatorPath(cls):
-        possiblePaths = ("/usr/bin/qemu-kvm", "/usr/libexec/qemu-kvm")
+        possiblePaths = ("/usr/bin/qemu-kvm", "/usr/libexec/qemu-kvm", "/usr/bin/qemu-system-x86_64")
         for _path in possiblePaths:
             if os.path.exists(_path):
                 return _path
