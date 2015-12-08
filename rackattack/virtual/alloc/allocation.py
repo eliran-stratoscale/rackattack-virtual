@@ -88,7 +88,7 @@ class Allocation:
             self._vms = None
         self._death = dict(when=time.time(), reason=reason)
         timer.cancelAllByTag(tag=self)
-        self._broadcaster.allocationChangedState(self._index)
+        self._broadcaster.allocationDied(self._index, reason=reason)
 
     def _enqueueBuildImages(self):
         toEnqeue = set()
@@ -136,7 +136,7 @@ class Allocation:
             self._dnsmasq.addIfNotAlready(instance.primaryMACAddress(), instance.ipAddress())
             self._vms[name] = instance
             self._allVMs[instance.index()] = instance
-        self._broadcaster.allocationChangedState(self._index)
+        self._broadcaster.allocationDone(self._index)
 
     def _availableIndex(self):
         indices = set(xrange(1, len(self._allVMs) + 2))
