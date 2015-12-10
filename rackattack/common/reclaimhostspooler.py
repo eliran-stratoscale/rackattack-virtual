@@ -90,11 +90,15 @@ class ReclaimHostSpooler(threading.Thread):
 
     def _handleSoftReclamationRequest(self, host):
         credentials = host.rootSSHCredentials()
+        targetDevice = host.targetDevice()
+        if targetDevice is None:
+            targetDevice = "default"
         args = [host.id(),
                 credentials["hostname"],
                 credentials["username"],
                 credentials["password"],
-                host.primaryMACAddress()]
+                host.primaryMACAddress(),
+                targetDevice]
         self._sendRequest("soft", args)
 
     def _sendRequest(self, _type, args):

@@ -131,7 +131,7 @@ class Test(unittest.TestCase):
     def isObjectInitialized(self):
         return hasattr(self, 'tested')
 
-    def tftpbootConfigureForInaugurator(self, id, mac, ip, clearDisk=False):
+    def tftpbootConfigureForInaugurator(self, id, mac, ip, clearDisk=False, targetDevice=None):
         self.assertEquals(id, self.hostImplementation.id())
         self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
         self.assertEquals(ip, self.hostImplementation.ipAddress())

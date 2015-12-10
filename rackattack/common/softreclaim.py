@@ -22,6 +22,7 @@ class SoftReclaim(threading.Thread):
                  username,
                  password,
                  macAddress,
+                 targetDevice,
                  inauguratorCommandLine,
                  softReclamationFailedMsgFifoWriteFd,
                  inauguratorKernel,
@@ -36,6 +37,9 @@ class SoftReclaim(threading.Thread):
         self._username = username
         self._password = password
         self._macAddress = macAddress
+        if targetDevice == "default":
+            targetDevice = None
+        self._targetDevice = targetDevice
         self._connection = connection.Connection(hostname=self._hostname,
                                                  username=self._username,
                                                  password=self._password)
@@ -87,7 +91,8 @@ class SoftReclaim(threading.Thread):
         self._connection.run.script(
             "%s --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" %
             (self._KEXEC_CMD,
-             self._inauguratorCommandLine(self._hostID, self._macAddress, self._hostname, clearDisk=False)))
+             self._inauguratorCommandLine(self._hostID, self._macAddress, self._hostname, clearDisk=False,
+                                          targetDevice=self._targetDevice)))
         self._connection.run.backgroundScript("sleep 2; %s -e" % (self._KEXEC_CMD,))
 
     def _sendSoftReclaimFailedMsg(self):

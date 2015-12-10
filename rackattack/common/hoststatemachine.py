@@ -13,7 +13,7 @@ STATE_DESTROYED = 6
 class HostStateMachine:
     _TIMEOUT = {
         STATE_QUICK_RECLAIMATION_IN_PROGRESS: 120,
-        STATE_SLOW_RECLAIMATION_IN_PROGRESS: 10 * 60,
+        STATE_SLOW_RECLAIMATION_IN_PROGRESS: 999 * 60,
         STATE_INAUGURATION_LABEL_PROVIDED: 5 * 60}
     _COLD_RECLAIMS_RETRIES = 5
     _COLD_RECLAIM_RECONFIGURE_BIOS = 4
@@ -21,8 +21,9 @@ class HostStateMachine:
     ALLOW_CLEARING_OF_DISK = True
 
     def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, reclaimHost,
-                 freshVMJustStarted=True):
+                 freshVMJustStarted=True, targetDevice=None):
         self._hostImplementation = hostImplementation
+        self._targetDevice = hostImplementation.targetDevice()
         self._destroyCallback = None
         self._inaugurate = inaugurate
         self._tftpboot = tftpboot
@@ -190,7 +191,8 @@ class HostStateMachine:
             self._hostImplementation.id(),
             self._hostImplementation.primaryMACAddress(),
             self._hostImplementation.ipAddress(),
-            clearDisk=clearDisk)
+            clearDisk=clearDisk,
+            targetDevice=self._targetDevice)
 
     def _inauguratorProgress(self, progress):
         if self._state not in [STATE_INAUGURATION_LABEL_PROVIDED, STATE_CHECKED_IN]:

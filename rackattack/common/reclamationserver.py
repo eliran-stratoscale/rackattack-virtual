@@ -28,6 +28,8 @@ class ThreadsMonitor:
 
 
 class InauguratorCommandLine:
+    _INAUGURATOR_COMMAND_LINE_TARGET_DEVICE_ADDITION = " --inauguratorTargetDeviceCandidate=%(targetDevice)s"
+
     def __init__(self, netmask, osmosisServerIP, inauguratorServerIP, inauguratorServerPort,
                  inauguratorGatewayIP, rootPassword, withLocalObjectStore):
         self._netmask = netmask
@@ -38,7 +40,7 @@ class InauguratorCommandLine:
         self._rootPassword = rootPassword
         self._withLocalObjectStore = withLocalObjectStore
 
-    def __call__(self, id, mac, ip, clearDisk):
+    def __call__(self, id, mac, ip, clearDisk, targetDevice=None):
         result = tftpboot._INAUGURATOR_COMMAND_LINE % dict(
             macAddress=mac, ipAddress=ip, netmask=self._netmask,
             osmosisServerIP=self._osmosisServerIP, inauguratorServerIP=self._inauguratorServerIP,
@@ -50,6 +52,8 @@ class InauguratorCommandLine:
             result += " --inauguratorWithLocalObjectStore"
         if clearDisk:
             result += " --inauguratorClearDisk"
+        if targetDevice is not None:
+            result += self._INAUGURATOR_COMMAND_LINE_TARGET_DEVICE_ADDITION % dict(targetDevice=targetDevice)
         return result
 
 

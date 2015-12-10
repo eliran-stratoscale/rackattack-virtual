@@ -31,6 +31,9 @@ class FakeHost:
     def primaryMacAddress(self):
         return "delta-echo-foxtrot"
 
+    def targetDevice(self):
+        return None
+
 
 class FakeTFTPBoot:
     def inauguratorCommandLine(self, *args):
