@@ -42,6 +42,7 @@ class HostStateMachine:
             doneCallback=self._inauguratorDone,
             progressCallback=self._inauguratorProgress)
         self._configureForInaugurator()
+        self._hasFirstReclamationOccurred = False
         if freshVMJustStarted:
             self._changeState(STATE_SOFT_RECLAMATION)
         else:
@@ -154,6 +155,9 @@ class HostStateMachine:
         return self._slowReclaimCounter > self._COLD_RECLAIM_RECONFIGURE_BIOS
 
     def _hardResetOnColdReclaim(self):
+        if not self._hasFirstReclamationOccurred:
+            self._hasFirstReclamationOccurred = True
+            return True
         return self._slowReclaimCounter > self._NR_COLD_RECLAMATIONS_BEFORE_HARD_RESET
 
     def _coldReclaim(self):

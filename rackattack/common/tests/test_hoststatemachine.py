@@ -29,7 +29,7 @@ class Test(unittest.TestCase):
         self.expectedTFTPBootToBeConfiguredForLocalHost = False
         self.expectedColdReclaim = False
         self.expectReconfigureBIOS = False
-        self.expectedHardReset = False
+        self.expectedHardReset = True
         self.expectedSoftReclaim = False
         self.expectedSelfDestruct = False
         self.softReclaimFailedCallback = None
@@ -398,6 +398,7 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_AllReclaimationRetriesFail_NoUser(self):
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
+        self.expectedHardReset = False
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectedClearDisk = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
@@ -411,6 +412,7 @@ class Test(unittest.TestCase):
     def test_vmLifeCycle_AllReclaimationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
         self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.expectedHardReset = False
         self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
         self.expectedClearDisk = True
         self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
@@ -459,6 +461,7 @@ class Test(unittest.TestCase):
     def test_softReclaimFailedWhileDestroyed(self):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
+        self.expectedHardReset = False
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectedClearDisk = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
@@ -528,6 +531,7 @@ class Test(unittest.TestCase):
         hoststatemachine.HostStateMachine.ALLOW_CLEARING_OF_DISK = False
         self.expectedClearDisk = False
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
+        self.expectedHardReset = False
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectedHardReset = True
