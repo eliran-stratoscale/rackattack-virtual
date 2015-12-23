@@ -2,8 +2,8 @@ from rackattack.common import timer
 import logging
 from rackattack.common import globallock
 
-STATE_QUICK_RECLAIMATION_IN_PROGRESS = 1
-STATE_SLOW_RECLAIMATION_IN_PROGRESS = 2
+STATE_SOFT_RECLAMATION = 1
+STATE_COLD_RECLAMATION = 2
 STATE_CHECKED_IN = 3
 STATE_INAUGURATION_LABEL_PROVIDED = 4
 STATE_INAUGURATION_DONE = 5
@@ -12,8 +12,8 @@ STATE_DESTROYED = 6
 
 class HostStateMachine:
     _TIMEOUT = {
-        STATE_QUICK_RECLAIMATION_IN_PROGRESS: 120,
-        STATE_SLOW_RECLAIMATION_IN_PROGRESS: 10 * 60,
+        STATE_SOFT_RECLAMATION: 120,
+        STATE_COLD_RECLAMATION: 10 * 60,
         STATE_INAUGURATION_LABEL_PROVIDED: 5 * 60}
     _COLD_RECLAIMS_RETRIES = 5
     _COLD_RECLAIM_RECONFIGURE_BIOS = 4
@@ -42,7 +42,7 @@ class HostStateMachine:
             progressCallback=self._inauguratorProgress)
         self._configureForInaugurator()
         if freshVMJustStarted:
-            self._changeState(STATE_QUICK_RECLAIMATION_IN_PROGRESS)
+            self._changeState(STATE_SOFT_RECLAMATION)
         else:
             self._coldReclaim()
 
@@ -93,8 +93,8 @@ class HostStateMachine:
     def _inauguratorCheckedIn(self):
         assert globallock.assertLocked()
 #        assert self._state in [
-#            STATE_SLOW_RECLAIMATION_IN_PROGRESS, STATE_QUICK_RECLAIMATION_IN_PROGRESS]
-        if self._state not in [STATE_SLOW_RECLAIMATION_IN_PROGRESS, STATE_QUICK_RECLAIMATION_IN_PROGRESS]:
+#            STATE_COLD_RECLAMATION, STATE_SOFT_RECLAMATION]
+        if self._state not in [STATE_COLD_RECLAMATION, STATE_SOFT_RECLAMATION]:
             logging.error("expected reclamation state, found %(state)s", dict(state=self._state))
 #####
 
@@ -122,8 +122,8 @@ class HostStateMachine:
 
     def softReclaimFailed(self):
         assert globallock.assertLocked()
-        assert self._state in [STATE_QUICK_RECLAIMATION_IN_PROGRESS, STATE_DESTROYED]
-        if self._state != STATE_QUICK_RECLAIMATION_IN_PROGRESS:
+        assert self._state in [STATE_SOFT_RECLAMATION, STATE_DESTROYED]
+        if self._state != STATE_SOFT_RECLAMATION:
             logging.warning("Ignoring soft reclamation failure, node already destroyed")
             return
         logging.warning("Soft reclaimation for host %(id)s failed, reverting to cold reclaimation. Previous"
@@ -165,14 +165,14 @@ class HostStateMachine:
         logging.info("Node is being cold reclaimed %(id)s", dict(
             id=self._hostImplementation.id()))
         self._configureForInaugurator(clearDisk=self._clearDiskOnSlowReclaim())
-        self._changeState(STATE_SLOW_RECLAIMATION_IN_PROGRESS)
+        self._changeState(STATE_COLD_RECLAMATION)
         self._reclaimHost.cold(self._hostImplementation,
                                reconfigureBIOS=self._initializeBIOSOnSlowReclaim())
 
     def _softReclaim(self):
         assert self._destroyCallback is not None
         logging.info("Node is being soft reclaimed %(id)s", dict(id=self._hostImplementation.id()))
-        self._changeState(STATE_QUICK_RECLAIMATION_IN_PROGRESS)
+        self._changeState(STATE_SOFT_RECLAMATION)
         self._configureForInaugurator()
         self._reclaimHost.soft(self._hostImplementation)
 
