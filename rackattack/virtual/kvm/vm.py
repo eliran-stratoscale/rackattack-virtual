@@ -120,3 +120,6 @@ class VM:
     @classmethod
     def allPossibleIDs(cls):
         return [cls._nameFromIndex(i) for i in xrange(cls._MAX_INDEX)]
+
+    def targetDevice(self):
+        return None
