@@ -43,8 +43,8 @@ class ReclaimHostSpooler(threading.Thread):
                 try:
                     action()
                 except Exception as e:
-                    logging.error("Error in reclamation-spooler thread: %(message)s. Commiting suicide.",
-                                  dict(message=e.message))
+                    logging.exception("Error in reclamation-spooler: %(message)s. Commiting suicide.",
+                                      dict(message=e.message))
                     suicide.killSelf()
                     raise
 
