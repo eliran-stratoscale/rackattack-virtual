@@ -201,7 +201,7 @@ class HostStateMachine:
         if self._state == STATE_CHECKED_IN:
             return
         if 'state' not in progress or 'percent' not in progress:
-            logging.error("Invalid progress message: %(progress)s", progress)
+            logging.error("Invalid progress message: %(progress)s", dict(progress=progress))
             return
         if progress['state'] != 'fetching':
             return
