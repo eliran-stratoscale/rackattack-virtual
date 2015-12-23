@@ -6,6 +6,7 @@ from rackattack.common import hoststatemachine
 from rackattack.common import globallock
 from rackattack.common import timer
 from rackattack.common.tests.common import FakeHost
+from rackattack.common import reclaimhostspooler
 
 
 class Empty:
@@ -28,6 +29,7 @@ class Test(unittest.TestCase):
         self.expectedTFTPBootToBeConfiguredForLocalHost = False
         self.expectedColdReclaim = False
         self.expectReconfigureBIOS = False
+        self.expectedHardReset = False
         self.expectedSoftReclaim = False
         self.expectedSelfDestruct = False
         self.softReclaimFailedCallback = None
@@ -69,8 +71,12 @@ class Test(unittest.TestCase):
         self.fakeDnsmasq = Empty()
         self.fakeDnsmasq.addIfNotAlready = self.dnsmasqAddIfNotAlready
         self.fakeReclaimHost = Empty()
-        self.fakeReclaimHost.cold = self.reclaimHostCold
-        self.fakeReclaimHost.soft = self.reclaimHostSoft
+        self.patchWithSpecValidation(fakeObject=self.fakeReclaimHost,
+                                     realMethod=reclaimhostspooler.ReclaimHostSpooler.cold,
+                                     fakeMethod=self.reclaimHostCold)
+        self.patchWithSpecValidation(fakeObject=self.fakeReclaimHost,
+                                     realMethod=reclaimhostspooler.ReclaimHostSpooler.soft,
+                                     fakeMethod=self.reclaimHostSoft)
         self.expectedTFTPBootToBeConfiguredForInaugurator = True
         self.expectedDnsmasqAddIfNotAlready = True
         self.expectedClearDisk = False
@@ -84,6 +90,25 @@ class Test(unittest.TestCase):
         self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
         assert self.checkInCallback is not None
         assert self.doneCallback is not None
+
+    def patchWithSpecValidation(self, fakeObject, realMethod, fakeMethod):
+        specValidator = mock.create_autospec(realMethod)
+        methodName = realMethod.__name__
+
+        def useFakeMethodWithSpecValidation(*args, **kwargs):
+            fakeSelf = None
+            try:
+                specValidator(fakeSelf, *args, **kwargs)
+            except TypeError as ex:
+                msg = "It seems that method '%(methodName)s' was used with the wrong argument " \
+                      "specification; args:%(args)s, kwargs: %(kwargs)s " \
+                      % dict(methodName=methodName, args=args, kwargs=kwargs)
+                ex.message = "%(msg)s. Original message: '%(origMessage)s'." % dict(msg=msg,
+                                                                                    origMessage=ex.message)
+                ex.args = (ex.message,)
+                raise ex
+            fakeMethod(*args, **kwargs)
+        setattr(fakeObject, methodName, useFakeMethodWithSpecValidation)
 
     def destroyHost(self, stateMachine):
         self.assertIs(stateMachine, self.tested)
@@ -171,11 +196,12 @@ class Test(unittest.TestCase):
         self.assertTrue(self.expectedTFTPBootToBeConfiguredForLocalHost)
         self.expectedTFTPBootToBeConfiguredForLocalHost = False
 
-    def reclaimHostCold(self, hostImplementation, reconfigureBIOS=False):
+    def reclaimHostCold(self, hostImplementation, reconfigureBIOS=False, hardReset=False):
         self.assertIs(hostImplementation, self.hostImplementation)
         self.assertTrue(self.expectedColdReclaim)
         self.expectedColdReclaim = False
         self.assertEqual(self.expectReconfigureBIOS, reconfigureBIOS)
+        self.assertEqual(self.expectedHardReset, hardReset)
 
     def reclaimHostSoft(self, hostImplementation):
         self.assertIs(hostImplementation, self.hostImplementation)
@@ -375,6 +401,7 @@ class Test(unittest.TestCase):
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectedClearDisk = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
+        self.expectedHardReset = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectReconfigureBIOS = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
@@ -383,19 +410,14 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_AllReclaimationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
-        self.callCausesColdReclaimAndStateChange(
-            self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
-
-        self.callCausesColdReclaimAndStateChange(
-            self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
         self.expectedClearDisk = True
-        self.callCausesColdReclaimAndStateChange(
-            self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
-        self.callCausesColdReclaimAndStateChange(
-            self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.expectedHardReset = True
+        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
         self.expectReconfigureBIOS = True
-        self.callCausesColdReclaimAndStateChange(
-            self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
         self.timerCausesSelfDestructAndStateChange()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
@@ -440,6 +462,7 @@ class Test(unittest.TestCase):
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectedClearDisk = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
+        self.expectedHardReset = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectReconfigureBIOS = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
@@ -507,6 +530,7 @@ class Test(unittest.TestCase):
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
+        self.expectedHardReset = True
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
 
 if __name__ == '__main__':

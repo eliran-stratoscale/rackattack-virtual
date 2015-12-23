@@ -18,6 +18,7 @@ class HostStateMachine:
     _COLD_RECLAIMS_RETRIES = 5
     _COLD_RECLAIM_RECONFIGURE_BIOS = 4
     _COLD_RECLAIMS_RETRIES_BEFORE_CLEARING_DISK = 2
+    _NR_COLD_RECLAMATIONS_BEFORE_HARD_RESET = 3
     ALLOW_CLEARING_OF_DISK = True
 
     def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, reclaimHost,
@@ -152,6 +153,9 @@ class HostStateMachine:
     def _initializeBIOSOnSlowReclaim(self):
         return self._slowReclaimCounter > self._COLD_RECLAIM_RECONFIGURE_BIOS
 
+    def _hardResetOnColdReclaim(self):
+        return self._slowReclaimCounter > self._NR_COLD_RECLAMATIONS_BEFORE_HARD_RESET
+
     def _coldReclaim(self):
         assert self._destroyCallback is not None or self._slowReclaimCounter == 0
         self._slowReclaimCounter += 1
@@ -167,7 +171,8 @@ class HostStateMachine:
         self._configureForInaugurator(clearDisk=self._clearDiskOnSlowReclaim())
         self._changeState(STATE_COLD_RECLAMATION)
         self._reclaimHost.cold(self._hostImplementation,
-                               reconfigureBIOS=self._initializeBIOSOnSlowReclaim())
+                               reconfigureBIOS=self._initializeBIOSOnSlowReclaim(),
+                               hardReset=self._hardResetOnColdReclaim())
 
     def _softReclaim(self):
         assert self._destroyCallback is not None

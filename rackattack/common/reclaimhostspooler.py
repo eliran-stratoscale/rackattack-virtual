@@ -48,7 +48,7 @@ class ReclaimHostSpooler(threading.Thread):
                     suicide.killSelf()
                     raise
 
-    def cold(self, host, reconfigureBIOS=False):
+    def cold(self, host, reconfigureBIOS=False, hardReset=False):
         del reconfigureBIOS
         self._notifyReclamationRequest(host, requestType="cold")
 
