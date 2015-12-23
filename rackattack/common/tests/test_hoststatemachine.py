@@ -125,8 +125,7 @@ class Test(unittest.TestCase):
         self.assertEquals(id, self.hostImplementation.id())
         if self.provideLabelRaises:
             raise Exception("Provide label raises on purpose, as part of test")
-        self.assertEquals(label, self.expectedProvidedLabel)
-        self.expectedProvidedLabel = None
+        self.actualProvidedLabel = label
 
     def isObjectInitialized(self):
         return hasattr(self, 'tested')
@@ -162,7 +161,11 @@ class Test(unittest.TestCase):
         self.expectedSoftReclaim = False
         self.softReclaimFailedCallback = self.tested.softReclaimFailed
 
-    def checkInCallbackProvidedLabelImmidiately(self, label):
+    def validateProvidedLabel(self, expected):
+        self.assertEquals(self.actualProvidedLabel, expected)
+        self.expectedProvidedLabel = None
+
+    def validateCheckInCallbackProvidesLabelImmediately(self, label):
         self.assertIn(self.tested.state(), [
             hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS,
             hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS])
@@ -171,7 +174,7 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedReportedState, None)
         self.expectedReportedState = hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED
         self.checkInCallback()
-        self.assertIs(self.expectedProvidedLabel, None)
+        self.validateProvidedLabel(expected=label)
         self.assertIs(self.expectedReportedState, None)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
 
@@ -205,7 +208,7 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS)
         self.assign("fake image label", "fake image hint")
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS)
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
         self.inaugurationDone()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
@@ -242,7 +245,7 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_OrderlyRelease(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
         self.unassignCausesSoftReclaim()
@@ -251,7 +254,7 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_OrderlyRelease_QuickReclaimationDidNotWork(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
         self.unassignCausesSoftReclaim()
@@ -260,25 +263,25 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SLOW_RECLAIMATION_IN_PROGRESS)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
-    def assignCallbackProvidedLabelImmidiately(self, label, hint):
+    def validateAssignCallbackProvidesLabelImmediately(self, label, hint):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_CHECKED_IN)
         self.assertIs(self.expectedProvidedLabel, None)
         self.expectedProvidedLabel = label
         self.assertIs(self.expectedReportedState, None)
         self.expectedReportedState = hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED
         self.assign(label, hint)
-        self.assertIs(self.expectedProvidedLabel, None)
+        self.validateProvidedLabel(expected=label)
         self.assertIs(self.expectedReportedState, None)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
 
     def test_vmLifeCycle_Reuse_ReachedCheckeInBeforeReuse(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.unassignCausesSoftReclaim()
         self.checkInCallbackLingers()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_CHECKED_IN)
-        self.assignCallbackProvidedLabelImmidiately("fake image label 2", "fake image hint 2")
+        self.validateAssignCallbackProvidesLabelImmediately("fake image label 2", "fake image hint 2")
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
         self.inaugurationDone()
         self.unassignCausesSoftReclaim()
@@ -286,12 +289,12 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_Reuse_ReassignedBeforeReachingCheckeIn(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.unassignCausesSoftReclaim()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS)
         self.assign("fake image label 2", "fake image hint 2")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label 2")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label 2")
         self.inaugurationDone()
         self.unassignCausesSoftReclaim()
 
@@ -305,7 +308,7 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_QuickReclaimationFailedWhenAssigned_UserDecidesToUnassign(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.unassignCausesSoftReclaim()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_QUICK_RECLAIMATION_IN_PROGRESS)
@@ -376,7 +379,7 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_UnableToProvideLabel_ColdReclaim(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.unassignCausesSoftReclaim()
         self.checkInCallbackLingers()
@@ -392,7 +395,7 @@ class Test(unittest.TestCase):
 
     def test_lateInaugurationDoneMessageDoesNotChangeState(self):
         self.assign("fake image label", "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
         self.doneCallback()
@@ -401,10 +404,10 @@ class Test(unittest.TestCase):
     def test_checkInWhileNotReclaiming(self):
         label = "fake image label"
         self.assign(label, "fake image hint")
-        self.checkInCallbackProvidedLabelImmidiately(label)
+        self.validateCheckInCallbackProvidesLabelImmediately(label)
         self.assertIs(self.expectedReportedState, None)
         self.expectedReportedState = hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED
-        self.expectedProvidedLabel = label
+        self.assertIs(self.expectedProvidedLabel, None)
         self.checkInCallback()
         self.assertIs(self.expectedProvidedLabel, None)
         self.assertIs(self.expectedReportedState, None)
@@ -449,7 +452,7 @@ class Test(unittest.TestCase):
         self.cancelAllTimersByTag(self.tested)
         self.progressCallback(dict(percent=100))
         self.assertIs(self.currentTimerTag, None)
-        self.checkInCallbackProvidedLabelImmidiately("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
         self.cancelAllTimersByTag(self.tested)
         self.progressCallback(dict(percent=100))
