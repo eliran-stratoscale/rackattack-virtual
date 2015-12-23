@@ -109,7 +109,7 @@ class ReclaimHostSpooler(threading.Thread):
         encodedRequest += ","
         os.write(self._reclamationRequestFd, encodedRequest)
 
-    def _handleColdReclamationRequest(self, host):
+    def _handleColdReclamationRequest(self, host, hardReset):
         raise NotImplementedError
 
     def _handleSoftReclamationFailedMsg(self):
