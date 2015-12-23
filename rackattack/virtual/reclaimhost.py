@@ -29,5 +29,6 @@ class ReclaimHost(reclaimhostspooler.ReclaimHostSpooler):
     def __init__(self, *args, **kwargs):
         reclaimhostspooler.ReclaimHostSpooler.__init__(self, *args, **kwargs)
 
-    def _handleColdReclamationRequest(self, host):
+    def _handleColdReclamationRequest(self, host, hardReset):
+        del hardReset
         host.coldRestart()
