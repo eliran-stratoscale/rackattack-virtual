@@ -10,9 +10,14 @@ from rackattack.common.tests.epolleventloop_testcase import EpollEventLoopTestCa
 from rackattack.common.tests.common import FakeHost, FakeTFTPBoot, FakeHostStateMachine
 
 
-class ReclaimHostTest(EpollEventLoopTestCase):
+class ReclaimHostSpoolerWithColdReclamation(reclaimhostspooler.ReclaimHostSpooler):
+    def __init__(self, *args, **kwargs):
+        reclaimhostspooler.ReclaimHostSpooler.__init__(self, *args, **kwargs)
+
+
+class Test(EpollEventLoopTestCase):
     def setUp(self):
-        super(ReclaimHostTest, self).setUp(moduleInWhichToSetupMocks=reclaimhostspooler)
+        super(Test, self).setUp(moduleInWhichToSetupMocks=reclaimhostspooler)
         self._host = FakeHost()
         self._hostStateMachine = FakeHostStateMachine(self._host)
         self._hosts = Hosts()
@@ -23,54 +28,14 @@ class ReclaimHostTest(EpollEventLoopTestCase):
         self._fakeSoftReclaimFailedFifoPath = "/fakeSoftReclaimFailedFifoPath"
         self._origKillSelf = reclaimhostspooler.suicide.killSelf
         reclaimhostspooler.suicide.killSelf = mock.Mock()
+        self._actualColdReclamationRequests = []
+        self._tested = self._generateTestedInstanceWithMockedThreading()
+        self._expectedRequests = []
+        self._coldReclaimCallbackRaisesException = False
 
     def tearDown(self):
         reclaimhostspooler.suicide.killSelf = self._origKillSelf
-        super(ReclaimHostTest, self).tearDown()
-
-    def _validateSoftReclamationRequestsFifo(self, requests):
-        for requestType, host in requests:
-            if requestType == "soft":
-                expectedRequest = self._getEncodedSoftRequest(host)
-            elif requestType == "cold":
-                expectedRequest = self._getEncodedColdRequest(host)
-            else:
-                self.assertTrue(False)
-            actual = self._pipeMethodsMock.getFifoContent(self._fakeSoftReclaimRequestFifoPath)
-            expected = expectedRequest + ","
-            self.assertEquals(actual, expected)
-
-    def _getEncodedColdRequest(self, host):
-        requestArgs = [host.id(),
-                       host.primaryMacAddress()]
-        decodedRequest = ",".join(requestArgs)
-        encodedRequest = base64.encodestring(decodedRequest)
-        return encodedRequest
-
-    def _getEncodedSoftRequest(self, host):
-        credentials = host.rootSSHCredentials()
-        requestArgs = [host.id(),
-                       credentials["hostname"],
-                       credentials["username"],
-                       credentials["password"],
-                       host.primaryMacAddress()]
-        decodedRequest = ",".join(requestArgs)
-        encodedRequest = base64.encodestring(decodedRequest)
-        return encodedRequest
-
-    def _generateTestedInstance(self):
-        instance = reclaimhostspooler.ReclaimHostSpooler(self._hosts,
-                                                         self._fakeSoftReclaimRequestFifoPath,
-                                                         self._fakeSoftReclaimFailedFifoPath)
-        instance._handleColdReclamationRequest = mock.Mock()
-        return instance
-
-
-class Test(ReclaimHostTest):
-    def setUp(self):
-        super(Test, self).setUp()
-        self._tested = self._generateTestedInstanceWithMockedThreading()
-        self._expectedRequests = []
+        super(Test, self).tearDown()
 
     def test_FifosCreatedIfDoNotExist(self):
         self.assertFalse(self._fakeFilesystem.Exists(self._fakeSoftReclaimRequestFifoPath))
@@ -129,7 +94,8 @@ class Test(ReclaimHostTest):
     def test_SuicideOnFailure(self):
         self._continueWithEventLoop()
         self._addColdReclamationRequest(self._host)
-        self.assertRaises(NotImplementedError, self._continueWithEventLoop)
+        self._coldReclaimCallbackRaisesException = True
+        self.assertRaises(ValueError, self._continueWithEventLoop)
         reclaimhostspooler.suicide.killSelf.assert_called_once_with()
 
     def test_NoCrashOnSoftReclaimRequestForHostWithEmptyName(self):
@@ -139,27 +105,71 @@ class Test(ReclaimHostTest):
     def test_ColdReclaimRequest(self):
         self._continueWithEventLoop()
         self._addColdReclamationRequest(self._host)
-        self.assertRaises(NotImplementedError, self._continueWithEventLoop)
+        self._continueWithEventLoop()
+        self._validateExpectedRequests()
 
     def _addSoftReclamationRequest(self, host):
         self._expectedRequests.append(["soft", self._host])
         request = greenlet.greenlet(lambda: self._tested.soft(self._host))
         request.switch()
 
-    def _addColdReclamationRequest(self, host):
+    def _addColdReclamationRequest(self, host, hardReset=True):
         self._expectedRequests.append(["cold", self._host])
-        request = greenlet.greenlet(lambda: self._tested.cold(self._host))
+        request = greenlet.greenlet(lambda: self._tested.cold(self._host, hardReset=hardReset))
         request.switch()
 
-    def _handleSoftReclamationRequest(self):
+    def _validateExpectedRequests(self):
         self._continueWithEventLoop()
-        self._expectedRequests.pop(0)
-        self._validateSoftReclamationRequestsFifo(self._expectedRequests)
+        for request in self._expectedRequests:
+            requestType = request[0]
+            if requestType == "cold":
+                actual = self._actualColdReclamationRequests.pop(0)
+                expected = request[1:]
+            elif requestType == "soft":
+                host = request[1]
+                expected = self._getEncodedSoftRequest(host)
+                actual = self._pipeMethodsMock.getFifoContent(self._fakeSoftReclaimRequestFifoPath)
+                actual = base64.decodestring(actual)
+            else:
+                self.assertFalse(True)
+            self.assertEquals(actual, expected)
 
     def _validateSoftReclaimFlow(self):
         self._continueWithEventLoop()
         self._addSoftReclamationRequest(self._host)
-        self._handleSoftReclamationRequest()
+        self._validateExpectedRequests()
+
+    def _handleColdReclamationRequest(self, host):
+        if self._coldReclaimCallbackRaisesException:
+            raise ValueError("Ignore me")
+        self._actualColdReclamationRequests.append([host])
+
+    def _getEncodedColdRequest(self, host):
+        requestArgs = [host.id(),
+                       host.primaryMACAddress()]
+        decodedRequest = ",".join(requestArgs)
+        encodedRequest = base64.encodestring(decodedRequest)
+        return encodedRequest
+
+    def _getEncodedSoftRequest(self, host):
+        credentials = host.rootSSHCredentials()
+        requestArgs = ["soft",
+                       host.id(),
+                       credentials["hostname"],
+                       credentials["username"],
+                       credentials["password"],
+                       host.primaryMACAddress(),
+                       host.targetDevice()]
+        return ",".join(requestArgs)
+
+    def _generateTestedInstance(self):
+        ReclaimHostSpoolerWithColdReclamation._handleColdReclamationRequest =  \
+            self._handleColdReclamationRequest
+        instance = ReclaimHostSpoolerWithColdReclamation(
+                    self._hosts,
+                    self._fakeSoftReclaimRequestFifoPath,
+                    self._fakeSoftReclaimFailedFifoPath)
+        return instance
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

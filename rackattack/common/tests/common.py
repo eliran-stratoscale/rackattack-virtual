@@ -28,11 +28,8 @@ class FakeHost:
     def rootSSHCredentials(self):
         return dict(hostname="alpha", username="bravo", password="charlie")
 
-    def primaryMacAddress(self):
-        return "delta-echo-foxtrot"
-
     def targetDevice(self):
-        return None
+        return "fake target device"
 
 
 class FakeTFTPBoot:
