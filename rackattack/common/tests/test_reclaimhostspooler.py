@@ -108,13 +108,19 @@ class Test(EpollEventLoopTestCase):
         self._continueWithEventLoop()
         self._validateExpectedRequests()
 
+    def test_ColdReclaimRequestWithHardReset(self):
+        self._continueWithEventLoop()
+        self._addColdReclamationRequest(self._host, hardReset=True)
+        self._continueWithEventLoop()
+        self._validateExpectedRequests()
+
     def _addSoftReclamationRequest(self, host):
         self._expectedRequests.append(["soft", self._host])
         request = greenlet.greenlet(lambda: self._tested.soft(self._host))
         request.switch()
 
-    def _addColdReclamationRequest(self, host, hardReset=True):
-        self._expectedRequests.append(["cold", self._host])
+    def _addColdReclamationRequest(self, host, hardReset=False):
+        self._expectedRequests.append(["cold", self._host, hardReset])
         request = greenlet.greenlet(lambda: self._tested.cold(self._host, hardReset=hardReset))
         request.switch()
 
@@ -139,10 +145,10 @@ class Test(EpollEventLoopTestCase):
         self._addSoftReclamationRequest(self._host)
         self._validateExpectedRequests()
 
-    def _handleColdReclamationRequest(self, host):
+    def _handleColdReclamationRequest(self, host, hardReset):
         if self._coldReclaimCallbackRaisesException:
             raise ValueError("Ignore me")
-        self._actualColdReclamationRequests.append([host])
+        self._actualColdReclamationRequests.append([host, hardReset])
 
     def _getEncodedColdRequest(self, host):
         requestArgs = [host.id(),

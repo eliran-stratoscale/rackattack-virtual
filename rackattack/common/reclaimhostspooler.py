@@ -50,7 +50,7 @@ class ReclaimHostSpooler(threading.Thread):
 
     def cold(self, host, reconfigureBIOS=False, hardReset=False):
         del reconfigureBIOS
-        self._notifyReclamationRequest(host, requestType="cold")
+        self._notifyReclamationRequest(host, requestType="cold", hardReset=hardReset)
 
     def soft(self, host):
         self._notifyReclamationRequest(host, requestType="soft")
@@ -73,8 +73,10 @@ class ReclaimHostSpooler(threading.Thread):
         poller.register(self._notifyThreadReadFd, eventmask=select.EPOLLIN)
         return poller
 
-    def _notifyReclamationRequest(self, host, requestType):
-        cmd = dict(_type=requestType, kwargs=dict(host=host))
+    def _notifyReclamationRequest(self, host, requestType, **kwargs):
+        requestArgs = dict(kwargs)
+        requestArgs["host"] = host
+        cmd = dict(_type=requestType, kwargs=requestArgs)
         self._queue.put(cmd)
         os.write(self._notifyThreadWriteFd, "1")
 
