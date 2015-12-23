@@ -1,4 +1,6 @@
+import os
 import mock
+import logging
 import unittest
 from rackattack.common import hoststatemachine
 from rackattack.common import globallock
@@ -30,6 +32,26 @@ class Test(unittest.TestCase):
         self.expectedSelfDestruct = False
         self.softReclaimFailedCallback = None
         self.construct()
+
+    @classmethod
+    def setUpClass(cls):
+        cls.configureLogging()
+
+    @classmethod
+    def configureLogging(self):
+        logger = logging.getLogger()
+        verbosity = int(os.getenv("VERBOSITY", 0))
+        logLevels = {0: logging.CRITICAL + 1,
+                     1: logging.ERROR,
+                     2: logging.INFO,
+                     3: logging.DEBUG}
+        maxVerbosity = max(logLevels.keys())
+        if verbosity > maxVerbosity:
+            verbosity = maxVerbosity
+        elif verbosity < 0:
+            verbosity = 0
+        logLevel = logLevels[verbosity]
+        logger.setLevel(logLevel)
 
     def tearDown(self):
         globallock._lock.release()
