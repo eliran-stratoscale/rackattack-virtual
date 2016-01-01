@@ -16,3 +16,4 @@ else
 echo "Error: Package manager was not found. Cannot continue with the installation.";
 exit 1;
 fi
+which solvent > /dev/null || (echo "Error: solvent was not found. Please install it first." && exit 1)
