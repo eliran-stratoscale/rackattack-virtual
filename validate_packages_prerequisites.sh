@@ -9,7 +9,7 @@ sudo yum upgrade -y "device-mapper-libs";
 rpm --import https://www.rabbitmq.com/rabbitmq-signing-key-public.asc;
 sudo yum install -y --nogpg rabbitmq-server;
 elif [[ "$APT_GET_CMD" != "" ]]; then
-sudo apt-get -y install libvirt-bin libvirt-dev syslinux pxelinux rabbitmq-server;
+sudo apt-get -y install libvirt-bin libvirt-dev syslinux pxelinux rabbitmq-server qemu-kvm;
 sudo systemctl stop rabbimq-server
 sudo systemctl disable rabbimq-server
 else
