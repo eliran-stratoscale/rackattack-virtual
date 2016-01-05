@@ -171,10 +171,9 @@ class Test(EpollEventLoopTestCase):
     def _generateTestedInstance(self):
         ReclaimHostSpoolerWithColdReclamation._handleColdReclamationRequest =  \
             self._handleColdReclamationRequest
-        instance = ReclaimHostSpoolerWithColdReclamation(
-                    self._hosts,
-                    self._fakeSoftReclaimRequestFifoPath,
-                    self._fakeSoftReclaimFailedFifoPath)
+        instance = ReclaimHostSpoolerWithColdReclamation(self._hosts,
+                                                         self._fakeSoftReclaimRequestFifoPath,
+                                                         self._fakeSoftReclaimFailedFifoPath)
         return instance
 
 if __name__ == '__main__':
