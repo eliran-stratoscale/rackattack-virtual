@@ -9,12 +9,6 @@ from rackattack.common import tftpboot, softreclaim, createfifos
 logger = logging.getLogger("reclamation")
 
 
-def getContents(_path):
-    with open(_path, "rb") as _file:
-        contents = _file.read()
-    return contents
-
-
 class ThreadsMonitor:
     def __init__(self):
         self._threads = set()
@@ -94,8 +88,8 @@ class ReclamationServer:
     def _setup(self):
         self._validateFifosExist()
         self._openFifos()
-        self._inauguratorKernel = getContents(tftpboot.INAUGURATOR_KERNEL)
-        self._inauguratorInitRD = getContents(tftpboot.INAUGURATOR_INITRD)
+        self._inauguratorKernel = tftpboot.INAUGURATOR_KERNEL
+        self._inauguratorInitRD = tftpboot.INAUGURATOR_INITRD
         self._actionTypes["soft"] = functools.partial(
             softreclaim.SoftReclaim,
             inauguratorCommandLine=self._inauguratorCommandLine,

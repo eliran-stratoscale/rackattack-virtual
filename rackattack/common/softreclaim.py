@@ -86,8 +86,8 @@ class SoftReclaim(threading.Thread):
         return uptime
 
     def _reclaimByKexec(self):
-        self._connection.ftp.putContents("/tmp/vmlinuz", self._inauguratorKernel)
-        self._connection.ftp.putContents("/tmp/initrd", self._inauguratorInitRD)
+        self._connection.ftp.putFile("/tmp/vmlinuz", self._inauguratorKernel)
+        self._connection.ftp.putFile("/tmp/initrd", self._inauguratorInitRD)
         self._connection.run.script(
             "%s --load /tmp/vmlinuz --initrd=/tmp/initrd --append='%s'" %
             (self._KEXEC_CMD,
