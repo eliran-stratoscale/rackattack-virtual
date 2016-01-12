@@ -1,12 +1,12 @@
 import os
 import shutil
-import tempfile
 import atexit
 import logging
 
 
 INAUGURATOR_KERNEL = "/usr/share/inaugurator/inaugurator.vmlinuz"
 INAUGURATOR_INITRD = "/usr/share/inaugurator/inaugurator.thin.initrd.img"
+ROOT_PATH = "/var/lib/rackattack/pxeboot"
 
 
 class TFTPBoot:
@@ -19,7 +19,10 @@ class TFTPBoot:
         self._inauguratorGatewayIP = inauguratorGatewayIP
         self._osmosisServerIP = osmosisServerIP
         self._withLocalObjectStore = withLocalObjectStore
-        self._root = tempfile.mkdtemp(suffix=".tftpboot")
+        self._root = ROOT_PATH
+        if os.path.exists(self._root):
+            os.remove(self._root)
+        os.makedirs(self._root)
         self._rootPassword = rootPassword
         atexit.register(self._cleanup)
         self._pxelinuxConfigDir = os.path.join(self._root, "pxelinux.cfg")
