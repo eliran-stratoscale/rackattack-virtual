@@ -52,8 +52,8 @@ class ReclaimHostSpooler(threading.Thread):
         del reconfigureBIOS
         self._notifyReclamationRequest(host, requestType="cold", hardReset=hardReset)
 
-    def soft(self, host):
-        self._notifyReclamationRequest(host, requestType="soft")
+    def soft(self, host, isInauguratorActive=False):
+        self._notifyReclamationRequest(host, requestType="soft", isInauguratorActive=isInauguratorActive)
 
     def _setupFifos(self):
         createfifos.validateFifoExists(self._reclamationRequestFifoPath)
@@ -90,7 +90,7 @@ class ReclaimHostSpooler(threading.Thread):
             action = self._reclamationHandlers[cmdType]
             action(**kwargs)
 
-    def _handleSoftReclamationRequest(self, host):
+    def _handleSoftReclamationRequest(self, host, isInauguratorActive):
         credentials = host.rootSSHCredentials()
         targetDevice = host.targetDevice()
         if targetDevice is None:
@@ -100,7 +100,8 @@ class ReclaimHostSpooler(threading.Thread):
                 credentials["username"],
                 credentials["password"],
                 host.primaryMACAddress(),
-                targetDevice]
+                targetDevice,
+                str(isInauguratorActive)]
         self._sendRequest("soft", args)
 
     def _sendRequest(self, _type, args):

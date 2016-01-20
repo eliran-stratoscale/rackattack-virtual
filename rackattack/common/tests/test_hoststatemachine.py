@@ -203,7 +203,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self.expectReconfigureBIOS, reconfigureBIOS)
         self.assertEqual(self.expectedHardReset, hardReset)
 
-    def reclaimHostSoft(self, hostImplementation):
+    def reclaimHostSoft(self, hostImplementation, isInauguratorActive=False):
         self.assertIs(hostImplementation, self.hostImplementation)
         self.assertTrue(self.expectedSoftReclaim)
         self.expectedSoftReclaim = False

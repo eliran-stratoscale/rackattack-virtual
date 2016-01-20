@@ -178,7 +178,8 @@ class HostStateMachine:
         logging.info("Node is being soft reclaimed %(id)s", dict(id=self._hostImplementation.id()))
         self._changeState(STATE_SOFT_RECLAMATION)
         self._configureForInaugurator()
-        self._reclaimHost.soft(self._hostImplementation)
+        isInauguratorActive = self._state in (STATE_CHECKED_IN, STATE_INAUGURATION_LABEL_PROVIDED)
+        self._reclaimHost.soft(self._hostImplementation, isInauguratorActive)
 
     def _changeState(self, state):
         timer.cancelAllByTag(tag=self)

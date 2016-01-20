@@ -165,7 +165,8 @@ class Test(EpollEventLoopTestCase):
                        credentials["username"],
                        credentials["password"],
                        host.primaryMACAddress(),
-                       host.targetDevice()]
+                       host.targetDevice(),
+                       "False"]
         return ",".join(requestArgs)
 
     def _generateTestedInstance(self):

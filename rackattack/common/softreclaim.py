@@ -1,5 +1,6 @@
 import os
 import time
+import socket
 import logging
 import threading
 from rackattack.ssh import connection
@@ -23,6 +24,7 @@ class SoftReclaim(threading.Thread):
                  password,
                  macAddress,
                  targetDevice,
+                 isInauguratorActive,
                  inauguratorCommandLine,
                  softReclamationFailedMsgFifoWriteFd,
                  inauguratorKernel,
@@ -40,13 +42,44 @@ class SoftReclaim(threading.Thread):
         if targetDevice == "default":
             targetDevice = None
         self._targetDevice = targetDevice
-        self._connection = connection.Connection(hostname=self._hostname,
-                                                 username=self._username,
-                                                 password=self._password)
+        self._isInauguratorActive = isInauguratorActive == "True"
+        self._connection = None
         self.daemon = True
         threading.Thread.start(self)
 
     def run(self):
+        if self._isInauguratorActive:
+            self._softReclaimInaugurator()
+        else:
+            self._softReclaimBySSH()
+
+    def _softReclaimInaugurator(self):
+        logger.info("Attempting to reclaim inaugurator in %(hostID)s...", dict(hostID=self._hostID))
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        try:
+            sock.connect((self._hostname, 8888))
+        except socket.timeout:
+            logger.warn("Timeout while connecting to debug port in inaugurator of %(hostID)s",
+                        dict(hostID=self._hostID))
+        except Exception as ex:
+            logger.warn("Could not connect to debug port in inaugurator of %(hostID)s: %(message)s",
+                        dict(hostID=self._hostID, message=str(e)))
+            return
+        try:
+            sock.send('reboot -f')
+        except socket.timeout:
+            logger.warn("Timeout while talking to debug port in inaugurator of %(hostID)s",
+                        dict(hostID=self._hostID))
+        except Exception as ex:
+            logger.warn("Could not talk to debug port in inaugurator of %(hostID)s: %(message)s",
+                        dict(hostID=self._hostID, message=str(e)))
+            return
+
+    def _softReclaimBySSH(self):
+        self._connection = connection.Connection(hostname=self._hostname,
+                                                 username=self._username,
+                                                 password=self._password)
         try:
             self._connection.connect()
         except:
