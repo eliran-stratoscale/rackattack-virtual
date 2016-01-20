@@ -21,7 +21,7 @@ class TFTPBoot:
         self._withLocalObjectStore = withLocalObjectStore
         self._root = ROOT_PATH
         if os.path.exists(self._root):
-            os.remove(self._root)
+            shutil.rmtree(self._root)
         os.makedirs(self._root)
         self._rootPassword = rootPassword
         atexit.register(self._cleanup)
