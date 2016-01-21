@@ -15,10 +15,10 @@ class HostStateMachine:
         STATE_SOFT_RECLAMATION: 120,
         STATE_COLD_RECLAMATION: 10 * 60,
         STATE_INAUGURATION_LABEL_PROVIDED: 5 * 60}
-    _COLD_RECLAIMS_RETRIES = 5
-    _COLD_RECLAIM_RECONFIGURE_BIOS = 4
-    _COLD_RECLAIMS_RETRIES_BEFORE_CLEARING_DISK = 2
-    _NR_COLD_RECLAMATIONS_BEFORE_HARD_RESET = 3
+    NR_CONSECUTIVE_ERRORS_BEFORE_DESTRUCTION = 5
+    NR_CONSECUTIVE_ERRORS_BEFORE_RECONFIGURING_BIOS = 4
+    NR_CONSECUTIVE_ERRORS_BEFORE_CLEARING_DISK = 2
+    NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET = 3
     ALLOW_CLEARING_OF_DISK = True
 
     def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, reclaimHost,
@@ -146,22 +146,22 @@ class HostStateMachine:
 
     def _clearDiskOnSlowReclaim(self):
         if self.ALLOW_CLEARING_OF_DISK:
-            return self._slowReclaimCounter > self._COLD_RECLAIMS_RETRIES_BEFORE_CLEARING_DISK
+            return self._slowReclaimCounter > self.NR_CONSECUTIVE_ERRORS_BEFORE_CLEARING_DISK
         return False
 
     def _initializeBIOSOnSlowReclaim(self):
-        return self._slowReclaimCounter > self._COLD_RECLAIM_RECONFIGURE_BIOS
+        return self._slowReclaimCounter > self.NR_CONSECUTIVE_ERRORS_BEFORE_RECONFIGURING_BIOS
 
     def _hardResetOnColdReclaim(self):
         if not self._hasFirstReclamationOccurred:
             self._hasFirstReclamationOccurred = True
             return True
-        return self._slowReclaimCounter > self._NR_COLD_RECLAMATIONS_BEFORE_HARD_RESET
+        return self._slowReclaimCounter > self.NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET
 
     def _coldReclaim(self):
         assert self._destroyCallback is not None or self._slowReclaimCounter == 0
         self._slowReclaimCounter += 1
-        if self._slowReclaimCounter > self._COLD_RECLAIMS_RETRIES:
+        if self._slowReclaimCounter > self.NR_CONSECUTIVE_ERRORS_BEFORE_DESTRUCTION:
             logging.error("Cold reclaims retries exceeded, destroying host %(id)s", dict(
                 id=self._hostImplementation.id()))
             assert self._destroyCallback is not None

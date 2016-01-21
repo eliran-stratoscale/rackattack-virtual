@@ -434,7 +434,7 @@ class Test(unittest.TestCase):
         self.validateCallCausesColdReclamation(self.currentTimer)
         self.checkInCallbackLingers()
 
-    def timerCausesSelfDestruct(self):
+    def validateTimerCausesSelfDestruct(self):
         self.assertFalse(self.expectedSelfDestruct)
         self.expectedSelfDestruct = True
         self.hostImplementation.expectedDestroy = True
@@ -443,37 +443,37 @@ class Test(unittest.TestCase):
         self.assertFalse(self.hostImplementation.expectedDestroy)
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
-    def timerCausesSelfDestructAndStateChange(self):
+    def validateTimerCausesSelfDestructionAndStateReport(self):
         self.assertIs(self.expectedReportedState, None)
         self.expectedReportedState = hoststatemachine.STATE_DESTROYED
-        self.timerCausesSelfDestruct()
+        self.validateTimerCausesSelfDestruct()
         self.assertIs(self.expectedReportedState, None)
 
+    def validateDestructionOfHost(self, validationCallback):
+        klass = hoststatemachine.HostStateMachine
+        for retryNr in range(1, klass.NR_CONSECUTIVE_ERRORS_BEFORE_DESTRUCTION + 1):
+            if retryNr > klass.NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET or retryNr == 1:
+                self.expectedHardReset = True
+            else:
+                self.expectedHardReset = False
+            if retryNr == klass.NR_CONSECUTIVE_ERRORS_BEFORE_CLEARING_DISK + 1:
+                self.expectedClearDisk = True
+            if retryNr == klass.NR_CONSECUTIVE_ERRORS_BEFORE_RECONFIGURING_BIOS + 1:
+                self.expectReconfigureBIOS = True
+            validationCallback()
+
     def test_vmLifeCycle_AllReclamationRetriesFail_NoUser(self):
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectedHardReset = False
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectedClearDisk = True
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectedHardReset = True
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectReconfigureBIOS = True
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.timerCausesSelfDestruct()
-        self.assertUnegisteredForInauguration(self.hostImplementation.id())
+        def callback():
+            self.validateCallCausesColdReclamation(self.currentTimer)
+        self.validateDestructionOfHost(callback)
+        self.validateTimerCausesSelfDestruct()
 
     def test_vmLifeCycle_AllReclamationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
-        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
-        self.expectedHardReset = False
-        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
-        self.expectedClearDisk = True
-        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
-        self.expectedHardReset = True
-        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
-        self.expectReconfigureBIOS = True
-        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
-        self.timerCausesSelfDestructAndStateChange()
+        def callback():
+            self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
+        self.validateDestructionOfHost(callback)
+        self.validateTimerCausesSelfDestructionAndStateReport()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
     def test_lateInaugurationDoneMessageDoesNotChangeState(self):
@@ -496,17 +496,10 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedReportedState, None)
 
     def test_softReclamationFailureWhileDestroyedDoesNotChangeState(self):
-        self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectedHardReset = False
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectedClearDisk = True
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectedHardReset = True
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.expectReconfigureBIOS = True
-        self.validateCallCausesColdReclamation(self.currentTimer)
-        self.timerCausesSelfDestruct()
+        def callback():
+            self.validateCallCausesColdReclamation(self.currentTimer)
+        self.validateDestructionOfHost(callback)
+        self.validateTimerCausesSelfDestruct()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
         self.tested.softReclaimFailed()
