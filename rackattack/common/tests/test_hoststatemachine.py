@@ -274,7 +274,7 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
-    def validateCallbackCausesColdReclamation(self, call):
+    def validateCallCausesColdReclamation(self, call):
         self.assertFalse(self.expectedColdReclaim)
         self.expectedColdReclaim = True
         self.expectedTFTPBootToBeConfiguredForInaugurator = True
@@ -285,10 +285,10 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
-    def callCausesColdReclaimAndStateChange(self, call, state):
+    def validateCallCausesColdReclamationAndStateReport(self, call):
         self.assertIs(self.expectedReportedState, None)
-        self.expectedReportedState = state
-        self.validateCallbackCausesColdReclamation(call)
+        self.expectedReportedState = hoststatemachine.STATE_COLD_RECLAMATION
+        self.validateCallCausesColdReclamation(call)
         self.assertIs(self.expectedReportedState, None)
 
     def test_vmLifeCycle_OrderlyRelease(self):
@@ -307,7 +307,7 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
         self.unassignCausesSoftReclaim()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
-        self.validateCallbackCausesColdReclamation(self.softReclaimFailedCallback)
+        self.validateCallCausesColdReclamation(self.softReclaimFailedCallback)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
@@ -363,22 +363,20 @@ class Test(unittest.TestCase):
         self.assign("fake image label", "fake image hint")
         self.assertIsNot(self.softReclaimFailedCallback, None)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
-        self.callCausesColdReclaimAndStateChange(
-            self.softReclaimFailedCallback, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.softReclaimFailedCallback)
         self.tested.unassign()
         self.checkInCallbackLingers()
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
     def test_vmLifeCycle_QuickReclamationFailedWithTimeoutWhenAssigned_UserDecidesToUnassign(self):
         self.assign("fake image label", "fake image hint")
-        self.callCausesColdReclaimAndStateChange(
-            self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.tested.unassign()
         self.checkInCallbackLingers()
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
     def test_coldReclamationSavesTheDay(self):
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.checkInCallbackLingers()
 
     def timerCausesSelfDestruct(self):
@@ -397,29 +395,29 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedReportedState, None)
 
     def test_vmLifeCycle_AllReclamationRetriesFail_NoUser(self):
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = False
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedClearDisk = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectReconfigureBIOS = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.timerCausesSelfDestruct()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
     def test_vmLifeCycle_AllReclamationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
-        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.expectedHardReset = False
-        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.expectedClearDisk = True
-        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.expectedHardReset = True
-        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.expectReconfigureBIOS = True
-        self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
+        self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.timerCausesSelfDestructAndStateChange()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
@@ -444,15 +442,15 @@ class Test(unittest.TestCase):
 
     def test_softReclaimFailedWhileDestroyed(self):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = False
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedClearDisk = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectReconfigureBIOS = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.timerCausesSelfDestruct()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
@@ -501,7 +499,7 @@ class Test(unittest.TestCase):
         self.assertIs(self.currentTimerTag, None)
         self.unassignCausesSoftReclaim()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
-        self.validateCallbackCausesColdReclamation(self.softReclaimFailedCallback)
+        self.validateCallCausesColdReclamation(self.softReclaimFailedCallback)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
         self.cancelAllTimersByTag(self.tested)
         self.progressCallback(dict(percent=100))
@@ -514,12 +512,12 @@ class Test(unittest.TestCase):
     def test_ClearingOfDiskNotAllowed(self):
         hoststatemachine.HostStateMachine.ALLOW_CLEARING_OF_DISK = False
         self.expectedClearDisk = False
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = False
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = True
-        self.validateCallbackCausesColdReclamation(self.currentTimer)
+        self.validateCallCausesColdReclamation(self.currentTimer)
 
 if __name__ == '__main__':
     unittest.main()
