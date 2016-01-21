@@ -270,6 +270,7 @@ class Test(unittest.TestCase):
         self.expectedDnsmasqAddIfNotAlready = True
         self.tested.unassign()
         self.assertFalse(self.expectedSoftReclaim)
+        self.assertFalse(self.expectedColdReclaim)
         self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
@@ -282,14 +283,38 @@ class Test(unittest.TestCase):
         call()
         self.assertFalse(self.expectedColdReclaim)
         self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
+        self.assertFalse(self.expectedDnsmasqAddIfNotAlready)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
+    def validateCallCausesSoftReclamation(self, call):
+        self.assertFalse(self.expectedColdReclaim)
+        self.expectedSoftReclaim = True
+        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.expectedDnsmasqAddIfNotAlready = True
+        call()
+        self.assertFalse(self.expectedSoftReclaim)
+        self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
+        self.assertFalse(self.expectedDnsmasqAddIfNotAlready)
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
+        self.assertRegisteredForInauguration(self.hostImplementation.id())
+
+    def validateCallCausesReclamationAndStateReport(self, call, state):
+        self.assertIs(self.expectedReportedState, None)
+        self.expectedReportedState = state
+        if state == hoststatemachine.STATE_COLD_RECLAMATION:
+            self.validateCallCausesColdReclamation(call)
+        elif state == hoststatemachine.STATE_SOFT_RECLAMATION:
+            self.validateCallCausesSoftReclamation(call)
+        else:
+            self.assertFalse(True, state)
+        self.assertIs(self.expectedReportedState, None)
+
+    def validateCallCausesSoftReclamationAndStateReport(self, call):
+        self.validateCallCausesReclamationAndStateReport(call, hoststatemachine.STATE_SOFT_RECLAMATION)
+
     def validateCallCausesColdReclamationAndStateReport(self, call):
-        self.assertIs(self.expectedReportedState, None)
-        self.expectedReportedState = hoststatemachine.STATE_COLD_RECLAMATION
-        self.validateCallCausesColdReclamation(call)
-        self.assertIs(self.expectedReportedState, None)
+        self.validateCallCausesReclamationAndStateReport(call, hoststatemachine.STATE_COLD_RECLAMATION)
 
     def test_vmLifeCycle_OrderlyRelease(self):
         self.assign("fake image label", "fake image hint")
@@ -440,7 +465,7 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedProvidedLabel, None)
         self.assertIs(self.expectedReportedState, None)
 
-    def test_softReclaimFailedWhileDestroyed(self):
+    def test_softReclamationFailureWhileDestroyedDoesNotChangeState(self):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = False
@@ -509,7 +534,7 @@ class Test(unittest.TestCase):
         self.progressCallback(dict(percent=100))
         self.assertIs(self.currentTimerTag, None)
 
-    def test_ClearingOfDiskNotAllowed(self):
+    def test_clearingOfDiskNotAllowed(self):
         hoststatemachine.HostStateMachine.ALLOW_CLEARING_OF_DISK = False
         self.expectedClearDisk = False
         self.validateCallCausesColdReclamation(self.currentTimer)
@@ -518,6 +543,13 @@ class Test(unittest.TestCase):
         self.validateCallCausesColdReclamation(self.currentTimer)
         self.expectedHardReset = True
         self.validateCallCausesColdReclamation(self.currentTimer)
+
+    def test_timeoutWhenWaitingForInaugurationCausesSoftReclamation(self):
+        self.assign("fake image label", "fake image hint")
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
+        self.validateCallCausesSoftReclamationAndStateReport(self.currentTimer)
 
 if __name__ == '__main__':
     unittest.main()

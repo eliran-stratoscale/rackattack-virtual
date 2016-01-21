@@ -120,7 +120,10 @@ class HostStateMachine:
         assert globallock.assertLocked()
         logging.warning("Timeout for host %(id)s at state %(state)s", dict(
             id=self._hostImplementation.id(), state=self._state))
-        self._coldReclaim()
+        if self._state in (STATE_COLD_RECLAMATION, STATE_SOFT_RECLAMATION):
+            self._coldReclaim()
+        else:
+            self._softReclaim()
 
     def softReclaimFailed(self):
         assert globallock.assertLocked()
