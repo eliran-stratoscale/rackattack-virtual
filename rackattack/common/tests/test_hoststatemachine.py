@@ -423,22 +423,6 @@ class Test(unittest.TestCase):
         self.timerCausesSelfDestructAndStateChange()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
-    def test_vmLifeCycle_UnableToProvideLabel_ColdReclaim(self):
-        self.assign("fake image label", "fake image hint")
-        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
-        self.inaugurationDone()
-        self.unassignCausesSoftReclaim()
-        self.checkInCallbackLingers()
-        self.assertEquals(self.tested.state(), hoststatemachine.STATE_CHECKED_IN)
-        self.provideLabelRaises = True
-        self.expectedReportedState = hoststatemachine.STATE_COLD_RECLAMATION
-        self.expectedTFTPBootToBeConfiguredForInaugurator = True
-        self.expectedDnsmasqAddIfNotAlready = True
-        self.expectedColdReclaim = True
-        self.assign("fake image label", "fake image hint")
-        self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
-        self.assertRegisteredForInauguration(self.hostImplementation.id())
-
     def test_lateInaugurationDoneMessageDoesNotChangeState(self):
         self.assign("fake image label", "fake image hint")
         self.validateCheckInCallbackProvidesLabelImmediately("fake image label")

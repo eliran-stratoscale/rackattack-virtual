@@ -134,17 +134,12 @@ class HostStateMachine:
         self._coldReclaim()
 
     def _provideLabel(self):
-        try:
-            logging.info("Node %(id)s being provided a label '%(label)s'", dict(
-                id=self._hostImplementation.id(), label=self._imageLabel))
-            self._inaugurate.provideLabel(
-                id=self._hostImplementation.id(), label=self._imageLabel)
-            self._inaugurationProgressPercent = 0
-            self._changeState(STATE_INAUGURATION_LABEL_PROVIDED)
-        except:
-            logging.exception("Unable to provide label, cold reclaiming host %(host)s", dict(
-                host=self._hostImplementation.id()))
-            self._coldReclaim()
+        logging.info("Node %(id)s being provided a label '%(label)s'", dict(
+            id=self._hostImplementation.id(), label=self._imageLabel))
+        self._inaugurate.provideLabel(
+            id=self._hostImplementation.id(), label=self._imageLabel)
+        self._inaugurationProgressPercent = 0
+        self._changeState(STATE_INAUGURATION_LABEL_PROVIDED)
 
     def _clearDiskOnSlowReclaim(self):
         if self.ALLOW_CLEARING_OF_DISK:
