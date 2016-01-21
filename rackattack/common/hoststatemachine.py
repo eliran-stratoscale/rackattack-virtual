@@ -179,9 +179,9 @@ class HostStateMachine:
     def _softReclaim(self):
         assert self._destroyCallback is not None
         logging.info("Node is being soft reclaimed %(id)s", dict(id=self._hostImplementation.id()))
+        isInauguratorActive = self._state in (STATE_CHECKED_IN, STATE_INAUGURATION_LABEL_PROVIDED)
         self._changeState(STATE_SOFT_RECLAMATION)
         self._configureForInaugurator()
-        isInauguratorActive = self._state in (STATE_CHECKED_IN, STATE_INAUGURATION_LABEL_PROVIDED)
         self._reclaimHost.soft(self._hostImplementation, isInauguratorActive)
 
     def _changeState(self, state):
