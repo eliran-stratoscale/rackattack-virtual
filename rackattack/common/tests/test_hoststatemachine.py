@@ -13,9 +13,65 @@ class Empty:
     pass
 
 
+class FakeTFTPBoot:
+    def __init__(self, test):
+        self.inauguratorCommandLine = mock.Mock(side_effect=self._inauguratorCommandLine)
+        self.configureForInaugurator = mock.Mock(side_effect=self._configureForInaugurator)
+        self.configureForLocalBoot = mock.Mock(side_effect=self._configureForLocalBoot)
+        self.test = test
+        self.expectedToBeConfiguredForLocalBoot = False
+        self.expectedToBeConfiguredForInaugurator = False
+        self._reset()
+
+    def expectToBeConfiguredForInaugurator(self):
+        self.test.assertFalse(self.expectedToBeConfiguredForInaugurator)
+        self.expectedToBeConfiguredForInaugurator = True
+
+    def expectToBeConfiguredForLocalBoot(self):
+        self.test.assertFalse(self.expectedToBeConfiguredForLocalBoot)
+        self.expectedToBeConfiguredForLocalBoot = True
+
+    def validateConfiguredOnceForInaugurator(self):
+        callCount = self.configureForInaugurator.call_count
+        self.configureForInaugurator.reset_mock()
+        self.test.assertEquals(callCount, 1)
+
+    def validateConfiguredOnceForLocalBoot(self):
+        callCount = self.configureForLocalBoot.call_count
+        self.configureForLocalBoot.reset_mock()
+        self.test.assertEquals(callCount, 1)
+
+    def _inauguratorCommandLine(self, id, mac, ip):
+        self.test.assertEquals(id, self.test.hostImplementation.id())
+        self.test.assertEquals(mac, self.test.hostImplementation.primaryMACAddress())
+        self.test.assertEquals(ip, self.test.hostImplementation.ipAddress())
+        return "fake inaugurator command line"
+
+    def _reset(self):
+        self.expectedToBeConfiguredForLocalBoot = False
+        self.expectedToBeConfiguredForInaugurator = False
+        self.inauguratorCommandLine.reset_mock()
+        self.configureForInaugurator.reset_mock()
+        self.configureForLocalBoot.reset_mock()
+
+    def _configureForInaugurator(self, id, mac, ip, clearDisk=False, targetDevice=None):
+        self.test.assertEquals(id, self.test.hostImplementation.id())
+        self.test.assertEquals(mac, self.test.hostImplementation.primaryMACAddress())
+        self.test.assertEquals(ip, self.test.hostImplementation.ipAddress())
+        self.test.assertTrue(self.expectedToBeConfiguredForInaugurator)
+        self.test.assertEquals(clearDisk, self.test.expectedClearDisk)
+        self.expectedToBeConfiguredForInaugurator = False
+
+    def _configureForLocalBoot(self, mac):
+        self.test.assertEquals(mac, self.test.hostImplementation.primaryMACAddress())
+        self.test.assertTrue(self.expectedToBeConfiguredForLocalBoot)
+        self.expectedToBeConfiguredForLocalBoot = False
+
+
 class Test(unittest.TestCase):
     def setUp(self):
         globallock._lock.acquire()
+        self.addCleanup(self.releaseGlobalLock)
         self.checkInCallback = None
         self.doneCallback = None
         self.expectedProvidedLabel = None
@@ -25,8 +81,6 @@ class Test(unittest.TestCase):
         timer.cancelAllByTag = self.cancelAllTimersByTag
         self.currentTimer = None
         self.currentTimerTag = None
-        self.expectedTFTPBootToBeConfiguredForInaugurator = False
-        self.expectedTFTPBootToBeConfiguredForLocalHost = False
         self.expectedColdReclaim = False
         self.expectReconfigureBIOS = False
         self.expectedHardReset = True
@@ -55,7 +109,7 @@ class Test(unittest.TestCase):
         logLevel = logLevels[verbosity]
         logger.setLevel(logLevel)
 
-    def tearDown(self):
+    def releaseGlobalLock(self):
         globallock._lock.release()
 
     def construct(self):
@@ -64,10 +118,7 @@ class Test(unittest.TestCase):
         self.fakeInaugurate.provideLabel = self.provideLabelForInauguration
         self.fakeInaugurate.register = self.registerForInauguration
         self.fakeInaugurate.unregister = self.unregisterForInauguration
-        self.fakeTFTPBoot = Empty()
-        self.fakeTFTPBoot.inauguratorCommandLine = self.inauguratorCommandLine
-        self.fakeTFTPBoot.configureForInaugurator = self.tftpbootConfigureForInaugurator
-        self.fakeTFTPBoot.configureForLocalBoot = self.tftpbootConfigureForLocalBoot
+        self.fakeTFTPBoot = FakeTFTPBoot(self)
         self.fakeDnsmasq = Empty()
         self.fakeDnsmasq.addIfNotAlready = self.dnsmasqAddIfNotAlready
         self.fakeReclaimHost = Empty()
@@ -77,7 +128,7 @@ class Test(unittest.TestCase):
         self.patchWithSpecValidation(fakeObject=self.fakeReclaimHost,
                                      realMethod=reclaimhostspooler.ReclaimHostSpooler.soft,
                                      fakeMethod=self.reclaimHostSoft)
-        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
         self.expectedDnsmasqAddIfNotAlready = True
         self.expectedClearDisk = False
         hoststatemachine.HostStateMachine.ALLOW_CLEARING_OF_DISK = True
@@ -87,7 +138,7 @@ class Test(unittest.TestCase):
             reclaimHost=self.fakeReclaimHost)
         self.tested.setDestroyCallback(self.destroyHost)
         self.assertIs(self.tested.hostImplementation(), self.hostImplementation)
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
+        self.fakeTFTPBoot.validateConfiguredOnceForInaugurator()
         assert self.checkInCallback is not None
         assert self.doneCallback is not None
 
@@ -135,12 +186,6 @@ class Test(unittest.TestCase):
         self.currentTimer = None
         self.currentTimerTag = None
 
-    def inauguratorCommandLine(self, id, mac, ip):
-        self.assertEquals(id, self.hostImplementation.id())
-        self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
-        self.assertEquals(ip, self.hostImplementation.ipAddress())
-        return "fake inaugurator command line"
-
     def registerForInauguration(self, id, checkInCallback, doneCallback, progressCallback):
         self.assertEquals(id, self.hostImplementation.id())
         self.assertIs(self.checkInCallback, None)
@@ -177,24 +222,11 @@ class Test(unittest.TestCase):
     def isObjectInitialized(self):
         return hasattr(self, 'tested')
 
-    def tftpbootConfigureForInaugurator(self, id, mac, ip, clearDisk=False, targetDevice=None):
-        self.assertEquals(id, self.hostImplementation.id())
-        self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
-        self.assertEquals(ip, self.hostImplementation.ipAddress())
-        self.assertTrue(self.expectedTFTPBootToBeConfiguredForInaugurator)
-        self.assertEquals(clearDisk, self.expectedClearDisk)
-        self.expectedTFTPBootToBeConfiguredForInaugurator = False
-
     def dnsmasqAddIfNotAlready(self, mac, ip):
         self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
         self.assertEquals(ip, self.hostImplementation.ipAddress())
         self.assertTrue(self.expectedDnsmasqAddIfNotAlready)
         self.expectedDnsmasqAddIfNotAlready = False
-
-    def tftpbootConfigureForLocalBoot(self, mac):
-        self.assertEquals(mac, self.hostImplementation.primaryMACAddress())
-        self.assertTrue(self.expectedTFTPBootToBeConfiguredForLocalHost)
-        self.expectedTFTPBootToBeConfiguredForLocalHost = False
 
     def reclaimHostCold(self, hostImplementation, reconfigureBIOS=False, hardReset=False):
         self.assertIs(hostImplementation, self.hostImplementation)
@@ -237,13 +269,12 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedProvidedLabel, None)
         self.assertIs(self.expectedReportedState, None)
         self.expectedReportedState = hoststatemachine.STATE_INAUGURATION_DONE
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForLocalHost)
-        self.expectedTFTPBootToBeConfiguredForLocalHost = True
+        self.fakeTFTPBoot.expectToBeConfiguredForLocalBoot()
         self.doneCallback()
         self.assertIs(self.expectedProvidedLabel, None)
         self.assertIs(self.expectedReportedState, None)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForLocalHost)
+        self.fakeTFTPBoot.validateConfiguredOnceForLocalBoot()
         self.assertIs(self.currentTimer, None)
 
     def assign(self, label, hint):
@@ -265,24 +296,23 @@ class Test(unittest.TestCase):
     def unassignCausesSoftReclaim(self):
         self.assertFalse(self.expectedSoftReclaim)
         self.expectedSoftReclaim = True
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
-        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
         self.expectedDnsmasqAddIfNotAlready = True
         self.tested.unassign()
         self.assertFalse(self.expectedSoftReclaim)
         self.assertFalse(self.expectedColdReclaim)
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
+        self.fakeTFTPBoot.validateConfiguredOnceForInaugurator()
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
     def validateCallCausesColdReclamation(self, call):
         self.assertFalse(self.expectedColdReclaim)
         self.expectedColdReclaim = True
-        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
         self.expectedDnsmasqAddIfNotAlready = True
         call()
         self.assertFalse(self.expectedColdReclaim)
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
+        self.fakeTFTPBoot.validateConfiguredOnceForInaugurator()
         self.assertFalse(self.expectedDnsmasqAddIfNotAlready)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
@@ -290,11 +320,11 @@ class Test(unittest.TestCase):
     def validateCallCausesSoftReclamation(self, call):
         self.assertFalse(self.expectedColdReclaim)
         self.expectedSoftReclaim = True
-        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
         self.expectedDnsmasqAddIfNotAlready = True
         call()
         self.assertFalse(self.expectedSoftReclaim)
-        self.assertFalse(self.expectedTFTPBootToBeConfiguredForInaugurator)
+        self.fakeTFTPBoot.validateConfiguredOnceForInaugurator()
         self.assertFalse(self.expectedDnsmasqAddIfNotAlready)
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
@@ -488,7 +518,7 @@ class Test(unittest.TestCase):
         self.checkInCallback = None
         self.doneCallback = None
         self.expectedDnsmasqAddIfNotAlready = True
-        self.expectedTFTPBootToBeConfiguredForInaugurator = True
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
         self.fakeDnsmasq.addIfNotAlready = mock.Mock()
         self.fakeTFTPBoot.configureForInaugurator = mock.Mock()
         self.expectedColdReclaim = True
