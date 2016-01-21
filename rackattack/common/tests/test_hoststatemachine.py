@@ -300,7 +300,7 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
-    def test_vmLifeCycle_OrderlyRelease_QuickReclaimationDidNotWork(self):
+    def test_vmLifeCycle_OrderlyRelease_QuickReclamationDidNotWork(self):
         self.assign("fake image label", "fake image hint")
         self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
@@ -354,7 +354,7 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_CHECKED_IN)
         self.assertIs(self.currentTimer, None)
 
-    def test_vmLifeCycle_QuickReclaimationFailedWhenAssigned_UserDecidesToUnassign(self):
+    def test_vmLifeCycle_QuickReclamationFailedWhenAssigned_UserDecidesToUnassign(self):
         self.assign("fake image label", "fake image hint")
         self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.inaugurationDone()
@@ -369,7 +369,7 @@ class Test(unittest.TestCase):
         self.checkInCallbackLingers()
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
-    def test_vmLifeCycle_QuickReclaimationFailedWithTimeoutWhenAssigned_UserDecidesToUnassign(self):
+    def test_vmLifeCycle_QuickReclamationFailedWithTimeoutWhenAssigned_UserDecidesToUnassign(self):
         self.assign("fake image label", "fake image hint")
         self.callCausesColdReclaimAndStateChange(
             self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
@@ -377,7 +377,7 @@ class Test(unittest.TestCase):
         self.checkInCallbackLingers()
         self.assertRegisteredForInauguration(self.hostImplementation.id())
 
-    def test_coldReclaimationSavesTheDay(self):
+    def test_coldReclamationSavesTheDay(self):
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.checkInCallbackLingers()
 
@@ -396,7 +396,7 @@ class Test(unittest.TestCase):
         self.timerCausesSelfDestruct()
         self.assertIs(self.expectedReportedState, None)
 
-    def test_vmLifeCycle_AllReclaimationRetriesFail_NoUser(self):
+    def test_vmLifeCycle_AllReclamationRetriesFail_NoUser(self):
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
         self.expectedHardReset = False
         self.validateCallbackCausesSoftReclamation(self.currentTimer)
@@ -409,7 +409,7 @@ class Test(unittest.TestCase):
         self.timerCausesSelfDestruct()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
-    def test_vmLifeCycle_AllReclaimationRetriesFail_WithUser(self):
+    def test_vmLifeCycle_AllReclamationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
         self.callCausesColdReclaimAndStateChange(self.currentTimer, hoststatemachine.STATE_COLD_RECLAMATION)
         self.expectedHardReset = False
