@@ -14,7 +14,7 @@ class UptimeTooLong(Exception):
 
 
 class SoftReclaim(threading.Thread):
-    _AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN = 60 * 60 * 24
+    _AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN = 60 * 60 * 48
     _KEXEC_CMD = "kexec"
 
     def __init__(self,
