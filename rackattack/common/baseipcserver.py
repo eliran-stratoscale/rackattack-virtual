@@ -5,6 +5,7 @@ from rackattack.tcp import suicide
 from rackattack.tcp import debug
 from rackattack import api
 from rackattack.common import globallock
+from rackattack.common import dynamicconfig
 import Queue
 
 
@@ -20,6 +21,12 @@ class BaseIPCServer(threading.Thread):
             raise Exception(
                 "Rackattack API version on the client side is '%s', and '%s' on the provider" % (
                     versionInfo['RACKATTACK_VERSION'], api.VERSION))
+
+    def cmd_admin__reloadStateMachineConfiguration(self, peer):
+        dynamicconfig.reloadConfiguration()
+
+    def cmd_admin__printStateMachineConfiguration(self, peer):
+        dynamicconfig.printConfiguration()
 
     def run(self):
         try:

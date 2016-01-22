@@ -11,7 +11,7 @@ STATE_DESTROYED = 6
 
 
 class HostStateMachine:
-    _TIMEOUT = {
+    TIMEOUT = {
         STATE_SOFT_RECLAMATION: 120,
         STATE_COLD_RECLAMATION: 10 * 60,
         STATE_INAUGURATION_LABEL_PROVIDED: 5 * 60}
@@ -187,8 +187,8 @@ class HostStateMachine:
     def _changeState(self, state):
         timer.cancelAllByTag(tag=self)
         self._state = state
-        if state in self._TIMEOUT:
-            timer.scheduleIn(timeout=self._TIMEOUT[state], callback=self._timeout, tag=self)
+        if state in self.TIMEOUT:
+            timer.scheduleIn(timeout=self.TIMEOUT[state], callback=self._timeout, tag=self)
         if self._stateChangeCallback is not None:
             self._stateChangeCallback(self)
 
@@ -216,5 +216,5 @@ class HostStateMachine:
         if progress[u'percent'] != self._inaugurationProgressPercent:
             self._inaugurationProgressPercent = progress[u'percent']
             timer.cancelAllByTag(tag=self)
-            timer.scheduleIn(timeout=self._TIMEOUT[STATE_INAUGURATION_LABEL_PROVIDED],
+            timer.scheduleIn(timeout=self.TIMEOUT[STATE_INAUGURATION_LABEL_PROVIDED],
                              callback=self._timeout, tag=self)

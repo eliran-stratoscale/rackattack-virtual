@@ -470,6 +470,7 @@ class Test(unittest.TestCase):
 
     def test_vmLifeCycle_AllReclamationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
+
         def callback():
             self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
         self.validateDestructionOfHost(callback)
