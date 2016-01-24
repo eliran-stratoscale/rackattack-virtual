@@ -74,6 +74,7 @@ class Test(unittest.TestCase):
         self.addCleanup(self.releaseGlobalLock)
         self.checkInCallback = None
         self.doneCallback = None
+        self.failureCallback = None
         self.expectedProvidedLabel = None
         self.provideLabelRaises = False
         self.expectedReportedState = None
@@ -186,13 +187,14 @@ class Test(unittest.TestCase):
         self.currentTimer = None
         self.currentTimerTag = None
 
-    def registerForInauguration(self, id, checkInCallback, doneCallback, progressCallback):
+    def registerForInauguration(self, id, checkInCallback, doneCallback, progressCallback, failureCallback):
         self.assertEquals(id, self.hostImplementation.id())
         self.assertIs(self.checkInCallback, None)
         self.assertIs(self.doneCallback, None)
         self.checkInCallback = checkInCallback
         self.doneCallback = doneCallback
         self.progressCallback = progressCallback
+        self.failureCallback = failureCallback
 
     def unregisterForInauguration(self, id):
         self.assertIsNot(self.checkInCallback, None)
@@ -276,6 +278,24 @@ class Test(unittest.TestCase):
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
         self.fakeTFTPBoot.validateConfiguredOnceForLocalBoot()
         self.assertIs(self.currentTimer, None)
+
+    def inaugurationFailed(self, isLastAttemptBeforeRevertingToColdReclamation=False):
+        self.assertIn(self.tested.state(), [hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED])
+        self.assertIs(self.expectedProvidedLabel, None)
+        self.assertIs(self.expectedReportedState, None)
+        if isLastAttemptBeforeRevertingToColdReclamation:
+            expectedReportedState = hoststatemachine.STATE_COLD_RECLAMATION
+        else:
+            expectedReportedState = hoststatemachine.STATE_SOFT_RECLAMATION
+        self.expectedReportedState = expectedReportedState
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
+        self.expectedDnsmasqAddIfNotAlready = True
+        self.expectedSoftReclaim = True
+        self.failureCallback(message="Some osmosis failure")
+        self.assertIs(self.expectedProvidedLabel, None)
+        self.assertIs(self.expectedReportedState, None)
+        self.assertEquals(self.tested.state(), expectedReportedState)
+        self.fakeTFTPBoot.validateConfiguredOnceForInaugurator()
 
     def assign(self, label, hint):
         self.tested.assign(self.stateChangedCallback, label, hint)
@@ -449,7 +469,11 @@ class Test(unittest.TestCase):
         self.validateTimerCausesSelfDestruct()
         self.assertIs(self.expectedReportedState, None)
 
-    def validateDestructionOfHost(self, validationCallback):
+    def validateDestructionOfHost(self, isAssigned):
+        if isAssigned:
+            validationMethod = self.validateCallCausesColdReclamationAndStateReport
+        else:
+            validationMethod = self.validateCallCausesColdReclamation
         klass = hoststatemachine.HostStateMachine
         for retryNr in range(1, klass.NR_CONSECUTIVE_ERRORS_BEFORE_DESTRUCTION + 1):
             if retryNr > klass.NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET or retryNr == 1:
@@ -460,20 +484,58 @@ class Test(unittest.TestCase):
                 self.expectedClearDisk = True
             if retryNr == klass.NR_CONSECUTIVE_ERRORS_BEFORE_RECONFIGURING_BIOS + 1:
                 self.expectReconfigureBIOS = True
-            validationCallback()
+            validationMethod(self.currentTimer)
+
+    def validateTimeoutOnSoftReclamation(self, isLastAttemptBeforeRevertingToColdReclamation=False):
+        self.expectedDnsmasqAddIfNotAlready = True
+        self.expectedSoftReclaim = True
+        if isLastAttemptBeforeRevertingToColdReclamation:
+            expectedReportedState = hoststatemachine.STATE_COLD_RECLAMATION
+        else:
+            expectedReportedState = hoststatemachine.STATE_SOFT_RECLAMATION
+        self.expectedReportedState = expectedReportedState
+        self.fakeTFTPBoot.expectToBeConfiguredForInaugurator()
+        self.currentTimer()
+        self.assertIs(self.expectedProvidedLabel, None)
+        self.assertIs(self.expectedReportedState, None)
+        self.assertEquals(self.tested.state(), expectedReportedState)
+        self.fakeTFTPBoot.validateConfiguredOnceForInaugurator()
+
+    def _reachMaxInaugurationFailureCountByFailureReports(self, imageLabel):
+        failureCallback = self.inaugurationFailed
+        self._reachMaxInaugurationFailureCount(imageLabel, failureCallback)
+
+    def _reachMaxInaugurationFailureCountBySoftReclamationTimeouts(self, imageLabel):
+        failureCallback = self.validateTimeoutOnSoftReclamation
+        self._reachMaxInaugurationFailureCount(imageLabel, failureCallback)
+
+    def _reachMaxInaugurationFailureCount(self, imageLabel, failureCallback):
+        nrRetries = hoststatemachine.HostStateMachine.MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES
+        for _ in xrange(nrRetries):
+            self.validateCheckInCallbackProvidesLabelImmediately(imageLabel)
+            self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
+            failureCallback()
+            self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
+
+    def validateInaugurationDoneMessageReloadsSoftReclamationRetries(self, failureCallback):
+        self.assign("fake image label", "fake image hint")
+        self._reachMaxInaugurationFailureCountByFailureReports("fake image label")
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_SOFT_RECLAMATION)
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
+        self.inaugurationDone()
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_DONE)
+        self.unassignCausesSoftReclaim()
+        self.assign("fake image label", "fake image hint")
+        self._reachMaxInaugurationFailureCountByFailureReports("fake image label")
 
     def test_vmLifeCycle_AllReclamationRetriesFail_NoUser(self):
-        def callback():
-            self.validateCallCausesColdReclamation(self.currentTimer)
-        self.validateDestructionOfHost(callback)
+        self.validateDestructionOfHost(isAssigned=False)
         self.validateTimerCausesSelfDestruct()
 
     def test_vmLifeCycle_AllReclamationRetriesFail_WithUser(self):
         self.assign("fake image label", "fake image hint")
-
-        def callback():
-            self.validateCallCausesColdReclamationAndStateReport(self.currentTimer)
-        self.validateDestructionOfHost(callback)
+        self.validateDestructionOfHost(isAssigned=True)
         self.validateTimerCausesSelfDestructionAndStateReport()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
 
@@ -497,9 +559,7 @@ class Test(unittest.TestCase):
         self.assertIs(self.expectedReportedState, None)
 
     def test_softReclamationFailureWhileDestroyedDoesNotChangeState(self):
-        def callback():
-            self.validateCallCausesColdReclamation(self.currentTimer)
-        self.validateDestructionOfHost(callback)
+        self.validateDestructionOfHost(isAssigned=False)
         self.validateTimerCausesSelfDestruct()
         self.assertUnegisteredForInauguration(self.hostImplementation.id())
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_DESTROYED)
@@ -574,6 +634,62 @@ class Test(unittest.TestCase):
         self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
         self.assertEquals(self.tested.state(), hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED)
         self.validateCallCausesSoftReclamationAndStateReport(self.currentTimer)
+
+    def test_failureDuringInaugurationCausesSoftReclamation(self):
+        self.checkInCallback()
+        self.expectedReportedState = hoststatemachine.STATE_INAUGURATION_LABEL_PROVIDED
+        self.assign("fake image label", "fake image hint")
+        self.inaugurationFailed()
+
+    def test_revertToColdReclamationByExhaustingSoftReclamationsDueToInaugurationFailures(self):
+        self.assign("fake image label", "fake image hint")
+        self._reachMaxInaugurationFailureCountByFailureReports("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+        self.expectedColdReclaim = True
+        self.inaugurationFailed(isLastAttemptBeforeRevertingToColdReclamation=True)
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
+
+    def test_revertToColdReclamationByExhaustingSoftReclamationsDueToTimeouts(self):
+        self.assign("fake image label", "fake image hint")
+        self._reachMaxInaugurationFailureCountBySoftReclamationTimeouts("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+        self.expectedColdReclaim = True
+        self.inaugurationFailed(isLastAttemptBeforeRevertingToColdReclamation=True)
+        self.assertEquals(self.tested.state(), hoststatemachine.STATE_COLD_RECLAMATION)
+
+    def test_coldReclamationBehavesNormallyAfterExhaustionOfSoftReclamationsDueToInaugurationFailures(self):
+        self.assign("fake image label", "fake image hint")
+        self._reachMaxInaugurationFailureCountByFailureReports("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+        self.validateDestructionOfHost(isAssigned=True)
+
+    def test_coldReclamationBehavesNormallyAfterExhaustionOfSoftReclamationsDueTimeouts(self):
+        self.assign("fake image label", "fake image hint")
+        self._reachMaxInaugurationFailureCountBySoftReclamationTimeouts("fake image label")
+        self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+        self.validateDestructionOfHost(isAssigned=True)
+
+    def test_unassigningDoesNotCauseDestruction(self):
+        """This was created specifically to validate that allocations that are being stopped before the
+        inauguration is either done, failed or timed out (could be a user manually stopping the
+        allocation, or a timeout value smaller in the test client than in Rackattack), do not cause the
+        state machine to be destroyed. To be destroyed, it has to either notify failure or timeout."""
+        nrRetries = hoststatemachine.HostStateMachine.MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES + \
+            hoststatemachine.HostStateMachine.NR_CONSECUTIVE_ERRORS_BEFORE_DESTRUCTION + 20
+        for _ in xrange(nrRetries):
+            self.assign("fake image label", "fake image hint")
+            self.validateCheckInCallbackProvidesLabelImmediately("fake image label")
+            self.unassignCausesSoftReclaim()
+
+    def test_InaugurationDoneMessageReloadsSoftReclamationRetriesAfterInaugurationFailureReports(self):
+        def failureCallback():
+            self._reachMaxInaugurationFailureCountByFailureReports("fake image label")
+        self.validateInaugurationDoneMessageReloadsSoftReclamationRetries(failureCallback)
+
+    def test_InaugurationDoneMessageReloadsSoftReclamationRetriesAfterSoftReclamationTimeouts(self):
+        def failureCallback():
+            self._reachMaxInaugurationFailureCountBySoftReclamationTimeouts("fake image label")
+        self.validateInaugurationDoneMessageReloadsSoftReclamationRetries(failureCallback)
 
 if __name__ == '__main__':
     unittest.main()

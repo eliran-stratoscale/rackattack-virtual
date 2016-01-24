@@ -19,6 +19,7 @@ class HostStateMachine:
     NR_CONSECUTIVE_ERRORS_BEFORE_RECONFIGURING_BIOS = 4
     NR_CONSECUTIVE_ERRORS_BEFORE_CLEARING_DISK = 2
     NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET = 3
+    MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES = 5
     ALLOW_CLEARING_OF_DISK = True
 
     def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, reclaimHost,
@@ -30,6 +31,7 @@ class HostStateMachine:
         self._tftpboot = tftpboot
         self._dnsmasq = dnsmasq
         self._slowReclaimCounter = 0
+        self._inaugurationFailureCounter = 0
         self._stop = False
         self._stateChangeCallback = None
         self._imageLabel = None
@@ -40,7 +42,8 @@ class HostStateMachine:
             id=hostImplementation.id(),
             checkInCallback=self._inauguratorCheckedIn,
             doneCallback=self._inauguratorDone,
-            progressCallback=self._inauguratorProgress)
+            progressCallback=self._inauguratorProgress,
+            failureCallback=self._inauguratorFailed)
         self._configureForInaugurator()
         self._hasFirstReclamationOccurred = False
         if freshVMJustStarted:
@@ -112,18 +115,41 @@ class HostStateMachine:
                           dict(server=self._hostImplementation.id(), state=self._state))
             return
         self._slowReclaimCounter = 0
+        self._inaugurationFailureCounter = 0
         if self._stateChangeCallback is not None:
             self._tftpboot.configureForLocalBoot(self._hostImplementation.primaryMACAddress())
             self._changeState(STATE_INAUGURATION_DONE)
 
+    def _handleInaugurationFailure(self):
+        hostID = self._hostImplementation.id()
+        self._inaugurationFailureCounter += 1
+        if self._inaugurationFailureCounter <= self.MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES:
+            logging.warn("Host '%(hostID)s' has had %(nrErrors)s consecutive inauguration failures so far "
+                         "(up to %(nrForColdReclamation)s before reverting to cold reclamation).",
+                         dict(hostID=hostID, nrErrors=self._inaugurationFailureCounter,
+                              nrForColdReclamation=self.MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES))
+            self._softReclaim()
+        else:
+            if self._inaugurationFailureCounter == self.MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES + 1:
+                logging.error("Soft reclamation retries exceeded for '%(id)s', reverting to cold "
+                              "reclamation", dict(id=hostID))
+            self._coldReclaim()
+
     def _timeout(self):
         assert globallock.assertLocked()
-        logging.warning("Timeout for host %(id)s at state %(state)s", dict(
-            id=self._hostImplementation.id(), state=self._state))
-        if self._state in (STATE_COLD_RECLAMATION, STATE_SOFT_RECLAMATION):
+        hostID = self._hostImplementation.id()
+        if self._state == STATE_COLD_RECLAMATION:
+            logging.warning("Timeout for host %(hostID)s in cold reclamation", dict(hostID=hostID))
             self._coldReclaim()
+        elif self._state == STATE_SOFT_RECLAMATION:
+            logging.warning("Timeout for host %(hostID)s in soft reclamation", dict(hostID=hostID))
+            self._coldReclaim()
+        elif self._state == STATE_INAUGURATION_LABEL_PROVIDED:
+            logging.warning("Timeout for host %(hostID)s while inaugurating...", dict(hostID=hostID))
+            self._handleInaugurationFailure()
         else:
-            self._softReclaim()
+            logging.error("Timeout for host %(hostID)s in an invalid state: %(state)s",
+                          dict(state=self._state, hostID=hostID))
 
     def softReclaimFailed(self):
         assert globallock.assertLocked()
@@ -168,8 +194,9 @@ class HostStateMachine:
             self.destroy()
             assert self._destroyCallback is None
             return
-        logging.info("Node is being cold reclaimed %(id)s", dict(
-            id=self._hostImplementation.id()))
+        logging.info("Node %(id)s is being cold reclaimed (attempt #%(attemptNr)s since last successful "
+                     "inauguration, or since initialization)", dict(id=self._hostImplementation.id(),
+                                                                    attemptNr=self._slowReclaimCounter))
         self._configureForInaugurator(clearDisk=self._clearDiskOnSlowReclaim())
         self._changeState(STATE_COLD_RECLAMATION)
         self._reclaimHost.cold(self._hostImplementation,
@@ -218,3 +245,10 @@ class HostStateMachine:
             timer.cancelAllByTag(tag=self)
             timer.scheduleIn(timeout=self.TIMEOUT[STATE_INAUGURATION_LABEL_PROVIDED],
                              callback=self._timeout, tag=self)
+
+    def _inauguratorFailed(self, message):
+        assert globallock.assertLocked()
+        hostID = self._hostImplementation.id()
+        logging.error("Inaugurator of '%(hostID)s' failed: '%(message)s'",
+                      dict(hostID=hostID, message=message))
+        self._handleInaugurationFailure()

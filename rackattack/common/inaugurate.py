@@ -9,16 +9,18 @@ class Inaugurate:
     def __init__(self, filesPath):
         self._registered = {}
         self._rabbit = rabbitmqwrapper.RabbitMQWrapper(filesPath)
-        self._server = server.Server(
-            checkInCallback=self._checkIn, doneCallback=self._done, progressCallback=self._progress)
+        self._server = server.Server(checkInCallback=self._checkIn,
+                                     doneCallback=self._done,
+                                     progressCallback=self._progress,
+                                     failedCallback=self._failure)
 
-    def register(self, id, checkInCallback, doneCallback, progressCallback):
+    def register(self, id, checkInCallback, doneCallback, progressCallback, failureCallback):
         assert globallock.assertLocked()
         assert id not in self._registered
         self._server.listenOnID(id)
         self._registered[id] = dict(
             checkInCallback=checkInCallback, doneCallback=doneCallback,
-            progressCallback=progressCallback)
+            progressCallback=progressCallback, failureCallback=failureCallback)
 
     def unregister(self, id):
         assert globallock.assertLocked()
@@ -54,3 +56,10 @@ class Inaugurate:
                 logging.error("Unknown Inaugurator progress: %(id)s", dict(id=id))
                 return
             self._registered[id]['progressCallback'](progress)
+
+    def _failure(self, id, message):
+        with globallock.lock():
+            if id not in self._registered:
+                logging.error("Unknown Inaugurator failure: %(id)s", dict(id=id))
+                return
+            self._registered[id]['failureCallback'](message)

@@ -15,10 +15,11 @@ class Test(unittest.TestCase):
         self.checkIn = mock.Mock()
         self.done = mock.Mock()
         self.progress = mock.Mock()
+        self.failed = mock.Mock()
 
     def test_register(self):
         with globallock.lock():
-            self.tested.register('awesome-server', self.checkIn, self.done, self.progress)
+            self.tested.register('awesome-server', self.checkIn, self.done, self.progress, self.failed)
         self.tested._server.listenOnID.assert_called_once_with('awesome-server')
         self.assertEquals(self.checkIn.call_count, 0)
         self.assertEquals(self.done.call_count, 0)
@@ -33,20 +34,21 @@ class Test(unittest.TestCase):
         self.tested._progress('non-awesome-server', 'some other progress')
         self.progress.assert_called_once_with('some progress')
         with globallock.lock():
-            self.assertRaises(AssertionError, self.tested.register, 'awesome-server', None, None, None)
+            self.assertRaises(AssertionError, self.tested.register, 'awesome-server', None, None, None,
+                              None)
         self.done.assert_called_once_with()
         self.progress.assert_called_once_with('some progress')
         self.tested._server.listenOnID.assert_called_once_with('awesome-server')
 
     def test_filterDigesting(self):
         with globallock.lock():
-            self.tested.register('awesome-server', self.checkIn, self.done, self.progress)
+            self.tested.register('awesome-server', self.checkIn, self.done, self.progress, self.failed)
         self.tested._progress('awesome-server', dict(state='digesting'))
         self.assertEquals(self.progress.call_count, 0)
 
     def test_unregister(self):
         with globallock.lock():
-            self.tested.register('awesome-server', self.checkIn, self.done, self.progress)
+            self.tested.register('awesome-server', self.checkIn, self.done, self.progress, self.failed)
         self.assertEquals(self.checkIn.call_count, 0)
         self.tested._checkIn('awesome-server')
         self.checkIn.assert_called_once_with()
