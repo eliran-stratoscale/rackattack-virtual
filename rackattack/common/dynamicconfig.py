@@ -9,7 +9,8 @@ STATE_MACHINE_CONFIG_SCHEME = dict(NR_CONSECUTIVE_ERRORS_BEFORE_DESTRUCTION=int,
                                    NR_CONSECUTIVE_ERRORS_BEFORE_CLEARING_DISK=int,
                                    NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET=int,
                                    MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES=int,
-                                   ALLOW_CLEARING_OF_DISK=bool)
+                                   ALLOW_CLEARING_OF_DISK=bool,
+                                   HOSTS_MAX_UPTIME=int)
 CONFIGURABLE_STATE_MACHINE_TIMEOUTS = ("STATE_SOFT_RECLAMATION",
                                        "STATE_COLD_RECLAMATION",
                                        "STATE_INAUGURATION_LABEL_PROVIDED")

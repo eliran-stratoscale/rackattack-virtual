@@ -20,6 +20,7 @@ class HostStateMachine:
     NR_CONSECUTIVE_ERRORS_BEFORE_CLEARING_DISK = 2
     NR_CONSECUTIVE_ERRORS_BEFORE_HARD_RESET = 3
     MAX_NR_CONSECUTIVE_INAUGURATION_FAILURES = 5
+    HOSTS_MAX_UPTIME = 48 * 60 * 60
     ALLOW_CLEARING_OF_DISK = True
 
     def __init__(self, hostImplementation, inaugurate, tftpboot, dnsmasq, reclaimHost,
@@ -209,7 +210,7 @@ class HostStateMachine:
         isInauguratorActive = self._state in (STATE_CHECKED_IN, STATE_INAUGURATION_LABEL_PROVIDED)
         self._changeState(STATE_SOFT_RECLAMATION)
         self._configureForInaugurator()
-        self._reclaimHost.soft(self._hostImplementation, isInauguratorActive)
+        self._reclaimHost.soft(self._hostImplementation, isInauguratorActive, self.HOSTS_MAX_UPTIME)
 
     def _changeState(self, state):
         timer.cancelAllByTag(tag=self)

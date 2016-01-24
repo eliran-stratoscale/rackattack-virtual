@@ -14,7 +14,6 @@ class UptimeTooLong(Exception):
 
 
 class SoftReclaim(threading.Thread):
-    _AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN = 60 * 60 * 48
     _KEXEC_CMD = "kexec"
 
     def __init__(self,
@@ -25,6 +24,7 @@ class SoftReclaim(threading.Thread):
                  macAddress,
                  targetDevice,
                  isInauguratorActive,
+                 maxUptime,
                  inauguratorCommandLine,
                  softReclamationFailedMsgFifoWriteFd,
                  inauguratorKernel,
@@ -43,6 +43,7 @@ class SoftReclaim(threading.Thread):
             targetDevice = None
         self._targetDevice = targetDevice
         self._isInauguratorActive = isInauguratorActive == "True"
+        self._maxUptime = maxUptime
         self._connection = None
         self.daemon = True
         threading.Thread.start(self)
@@ -109,7 +110,10 @@ class SoftReclaim(threading.Thread):
 
     def _validateUptime(self):
         uptime = self._getUptime()
-        if uptime > self._AVOID_RECLAIM_BY_KEXEC_IF_UPTIME_MORE_THAN:
+        maxUptime = int(self._maxUptime)
+        logger.info("Host %(hostID)s uptime: %(uptime)s, max uptime: %(maxUptime)s",
+                    dict(hostID=self._hostID, uptime=uptime, maxUptime=self._maxUptime))
+        if uptime > maxUptime:
             raise UptimeTooLong(uptime)
 
     def _getUptime(self):

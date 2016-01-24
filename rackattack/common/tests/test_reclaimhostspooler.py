@@ -116,7 +116,7 @@ class Test(EpollEventLoopTestCase):
 
     def _addSoftReclamationRequest(self, host):
         self._expectedRequests.append(["soft", self._host])
-        request = greenlet.greenlet(lambda: self._tested.soft(self._host))
+        request = greenlet.greenlet(lambda: self._tested.soft(self._host, maxUptime=4))
         request.switch()
 
     def _addColdReclamationRequest(self, host, hardReset=False):
@@ -166,7 +166,8 @@ class Test(EpollEventLoopTestCase):
                        credentials["password"],
                        host.primaryMACAddress(),
                        host.targetDevice(),
-                       "False"]
+                       "False",
+                       "4"]
         return ",".join(requestArgs)
 
     def _generateTestedInstance(self):
