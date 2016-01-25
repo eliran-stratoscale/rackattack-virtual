@@ -68,7 +68,7 @@ class SoftReclaim(threading.Thread):
                         dict(hostID=self._hostID, message=str(e)))
             return
         try:
-            sock.send('reboot -f')
+            sock.send('REBOOT')
         except socket.timeout:
             logger.warn("Timeout while talking to debug port in inaugurator of %(hostID)s",
                         dict(hostID=self._hostID))
