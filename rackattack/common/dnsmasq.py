@@ -57,6 +57,7 @@ class DNSMasq(threading.Thread):
             self, tftpboot, serverIP, netmask, firstIP, lastIP, gateway=None,
             nameserver=None, interface=None):
         self._tftpboot = tftpboot
+        self._serverIP = serverIP
         self._nodesMACIPPairs = []
         self._netmask = netmask
         self._firstIP = firstIP
@@ -68,10 +69,7 @@ class DNSMasq(threading.Thread):
         self._configFile = self._configurationFile()
         self._writeHostsFile()
         self._stopped = False
-        self._popen = subprocess.Popen(
-            ['dnsmasq', '--no-daemon', '--listen-address=' + serverIP,
-                '--conf-file=' + self._configFile.name, '--dhcp-hostsfile=' + self.HOSTS_FILENAME],
-            stdout=self._logFile, stderr=subprocess.STDOUT, close_fds=True)
+        self._popen = None
         atexit.register(self._exit)
         threading.Thread.__init__(self)
         self.daemon = True
@@ -115,21 +113,29 @@ class DNSMasq(threading.Thread):
         return conf
 
     def run(self):
-        self._popen.wait()
-        if self._stopped:
-            return
-        self._stopped = True
-        logging.error("DNSMASQ process exited early, shutting down")
+        while True:
+            self._executeUntilFinished()
+            if self._stopped:
+                break
+            else:
+                logging.info("DNSMASQ exited early. Will execute it again in 5 seconds...")
+                time.sleep(5)
+                logging.info("Re-executing DNSMasq...")
+                continue
         logging.error("DNSMASQ output:\n%(output)s", dict(output=open(self._logFile.name).read()))
         os.system("cp %s /tmp/dnsmasq.error.log" % self._logFile.name)
         os.system("cp %s /tmp/dnsmasq.error.config" % self._configFile.name)
-        os.kill(os.getpid(), signal.SIGKILL)
 
     def _exit(self):
-        if self._stopped:
-            return
         self._stopped = True
         self._popen.terminate()
+
+    def _executeUntilFinished(self):
+        self._popen = subprocess.Popen(
+            ['dnsmasq', '--no-daemon', '--listen-address=' + self._serverIP,
+                '--conf-file=' + self._configFile.name, '--dhcp-hostsfile=' + self.HOSTS_FILENAME],
+            stdout=self._logFile, stderr=subprocess.STDOUT, close_fds=True)
+        self._popen.wait()
 
 _TEMPLATE = \
     'tftp-root=%(tftpbootRoot)s\n' + \

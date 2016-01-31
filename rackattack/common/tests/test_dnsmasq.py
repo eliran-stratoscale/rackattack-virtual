@@ -22,6 +22,7 @@ class Test(unittest.TestCase):
         DNSMasq.run = lambda x: None
         self.tested = DNSMasq(self.tftpBootMock, '10.0.0.1', '255.255.255.0', '10.0.0.2', '10.0.0.10',
                               gateway='10.0.0.20', nameserver='8.8.8.8', interface='eth0')
+        self.tested._popen = subprocess.Popen()
         self.tested._popen.pid = 12345
 
     def tearDown(self):
