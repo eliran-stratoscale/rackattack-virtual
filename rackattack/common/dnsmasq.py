@@ -11,7 +11,7 @@ import re
 
 class DNSMasq(threading.Thread):
     HOSTS_FILENAME = os.path.join("/tmp", "dnsmasq.hosts")
-    LEASES_FILE = os.path.join("/var", "lib", "dnsmasq" "dnsmasq.leases")
+    LEASES_FILE = os.path.join("/var", "lib", "dnsmasq", "dnsmasq.leases")
 
     @classmethod
     def eraseLeasesFile(self):
