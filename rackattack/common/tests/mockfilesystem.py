@@ -1,8 +1,5 @@
 import sys
-import fake_tempfile
-import fake_filesystem
-import fake_filesystem_glob
-import fake_filesystem_shutil
+from pyfakefs import fake_tempfile, fake_filesystem, fake_filesystem_glob, fake_filesystem_shutil
 
 
 fakeModules = dict(os=fake_filesystem.FakeOsModule,

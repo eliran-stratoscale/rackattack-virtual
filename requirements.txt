@@ -2,7 +2,7 @@ pika>=0.10.0
 paramiko
 coverage
 upseto
-pyfakefs
+pyfakefs>=2.7
 mock
 simplejson
 inaugurator==1.1
