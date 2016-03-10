@@ -74,6 +74,7 @@ class DNSMasq(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         threading.Thread.start(self)
+        self._asyncExecute()
 
     def _reload(self):
         self._writeHostsFile()
@@ -113,8 +114,10 @@ class DNSMasq(threading.Thread):
         return conf
 
     def run(self):
+        isFirstTime = True
         while True:
-            self._executeUntilFinished()
+            self._executeUntilFinished(isFirstTime)
+            isFirstTime = False
             if self._stopped:
                 break
             else:
@@ -130,12 +133,17 @@ class DNSMasq(threading.Thread):
         self._stopped = True
         self._popen.terminate()
 
-    def _executeUntilFinished(self):
+    def _asyncExecute(self):
         self._popen = subprocess.Popen(
             ['dnsmasq', '--no-daemon', '--listen-address=' + self._serverIP,
                 '--conf-file=' + self._configFile.name, '--dhcp-hostsfile=' + self.HOSTS_FILENAME],
             stdout=self._logFile, stderr=subprocess.STDOUT, close_fds=True)
+
+    def _executeUntilFinished(self, isFirstTime=False):
+        if not isFirstTime:
+            self._asyncExecute()
         self._popen.wait()
+
 
 _TEMPLATE = \
     'tftp-root=%(tftpbootRoot)s\n' + \
