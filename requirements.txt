@@ -5,7 +5,7 @@ upseto
 pyfakefs>=2.7
 mock
 simplejson
-inaugurator==1.2
+inaugurator==1.2.1
 libvirt-python
 pep8
 xmltodict
