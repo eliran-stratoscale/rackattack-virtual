@@ -73,8 +73,8 @@ class DNSMasq(threading.Thread):
         atexit.register(self._exit)
         threading.Thread.__init__(self)
         self.daemon = True
-        threading.Thread.start(self)
         self._asyncExecute()
+        threading.Thread.start(self)
 
     def _reload(self):
         self._writeHostsFile()
