@@ -27,11 +27,13 @@ build/rackattack.virtual.egg: rackattack/virtual/main.py
 	python -m upseto.packegg --entryPoint=$< --output=$@ --createDeps=$@.dep --compile_pyc --joinPythonNamespaces
 -include build/rackattack.virtual.egg.dep
 
-install: validate_requirements build/rackattack.virtual.egg
+install: validate_requirements build/rackattack.virtual.egg rackattack/virtual/remove_pidfile.py rackattack/virtual/wait_for_server_to_be_ready.py
 	-sudo service rackattack-virtual stop
 	-sudo systemctl stop rackattack-virtual.service
 	-sudo mkdir /usr/share/rackattack.virtual
 	sudo cp build/rackattack.virtual.egg /usr/share/rackattack.virtual
+	sudo cp rackattack/virtual/remove_pidfile.py /usr/share/rackattack.virtual
+	sudo cp rackattack/virtual/wait_for_server_to_be_ready.py /usr/share/rackattack.virtual
 	make install_service_`python get_system_setting.py systemManager`
 
 install_service_systemd:

@@ -1,3 +1,4 @@
+import os
 import logging
 import argparse
 from rackattack.virtual import logconfig
@@ -25,7 +26,7 @@ import atexit
 from rackattack.virtual import reclaimhost
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--requestPort", default=1014, type=int)
+parser.add_argument("--requestPort", default=config.DEFAULT_REQUEST_PORT, type=int)
 parser.add_argument("--subscribePort", default=1015, type=int)
 parser.add_argument("--httpPort", default=1016, type=int)
 parser.add_argument("--maximumVMs", type=int)
@@ -97,6 +98,13 @@ def createPostMortemPackForAllocationID(allocationID):
         return allocationsInstance.byIndex(int(allocationID)).createPostMortemPack()
 
 
+def writePIDFile():
+    pidFilePath = config.PID_FILEPATH
+    logging.info("Writing to PID file at '%s'..." % (pidFilePath,))
+    with open(pidFilePath, "w") as f:
+        f.write(str(os.getpid()))
+
+
 root = httprootresource.HTTPRootResource(
     serialLogFilename, createPostMortemPackForAllocationID,
     config.MANAGED_POST_MORTEM_PACKS_DIRECTORY)
@@ -104,4 +112,5 @@ reactor.listenTCP(args.httpPort, server.Site(root))
 reactor.listenTCP(args.requestPort, transportserver.TransportFactory(ipcServer.handle))
 logging.info("Virtual RackAttack up and running")
 logging.getLogger("network").setLevel(logging.INFO)
+writePIDFile()
 reactor.run()

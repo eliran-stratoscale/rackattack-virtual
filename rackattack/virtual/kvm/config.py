@@ -1,15 +1,19 @@
+import os
+VAR_DIRPATH = os.path.join("/var", "lib", "rackattack-virtual")
 NETWORK_NAME = "rackattacknet"
 DOMAIN_PREFIX = "rackattack-"
 MAXIMUM_VMS = 4
 MAXIMUM_DISK_IMAGES = 6
-DISK_IMAGES_DIRECTORY = "/var/lib/rackattackvirtual/diskimages"
-IMAGE_STORE_DIRECTORY = "/var/lib/rackattackvirtual/imagestore"
-IMAGE_STORE_LAST_USED = "/var/lib/rackattackvirtual/imagestore/lastused.json"
-SERIAL_LOGS_DIRECTORY = "/var/lib/rackattackvirtual/seriallogs"
-MANAGED_POST_MORTEM_PACKS_DIRECTORY = "/var/lib/rackattackvirtual/postMortemPacks"
-RABBIT_MQ_DIRECTORY = "/var/lib/rackattackvirtual/mq"
+DISK_IMAGES_DIRECTORY = os.path.join(VAR_DIRPATH, "diskimages")
+IMAGE_STORE_DIRECTORY = os.path.join(VAR_DIRPATH, "imagestore")
+IMAGE_STORE_LAST_USED = os.path.join(VAR_DIRPATH, "imagestore/lastused.json")
+SERIAL_LOGS_DIRECTORY = os.path.join(VAR_DIRPATH, "seriallogs")
+MANAGED_POST_MORTEM_PACKS_DIRECTORY = os.path.join(VAR_DIRPATH, "postMortemPacks")
+RABBIT_MQ_DIRECTORY = os.path.join(VAR_DIRPATH, "mq")
 ROOT_PASSWORD = "rackattack"
 ERASE_IF_IMAGE_UNUSED_FOR = 14 * 24 * 60 * 60
 IMAGE_BUILDING_VM_INDEX = 50
-RECLAMATION_REQUESTS_FIFO_PATH = "/var/lib/rackattackvirtual/reclamation_requests_fifo"
-SOFT_RECLAMATION_FAILURE_MSG_FIFO_PATH = "/var/lib/rackattackvirtual/soft_reclamations_failure_msg_fifo"
+RECLAMATION_REQUESTS_FIFO_PATH = os.path.join(VAR_DIRPATH, "reclamation_requests_fifo")
+SOFT_RECLAMATION_FAILURE_MSG_FIFO_PATH = os.path.join(VAR_DIRPATH, "/soft_reclamations_failure_msg_fifo")
+PID_FILEPATH = os.path.join(VAR_DIRPATH, "pid")
+DEFAULT_REQUEST_PORT = 1014

@@ -5,7 +5,9 @@ After=network.target libvirtd.service
 [Service]
 Type=simple
 Environment='PYTHONPATH=/usr/share/rackattack.virtual/rackattack.virtual.egg'
+ExecStartPre=/usr/bin/python /usr/share/rackattack.virtual/remove_pidfile.py
 ExecStart=/usr/bin/python -m rackattack.virtual.main
+ExecStartPost=/usr/bin/python /usr/share/rackattack.virtual/wait_for_server_to_be_ready.py
 
 [Install]
 WantedBy=multi-user.target
