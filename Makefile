@@ -60,7 +60,7 @@ prepareForCleanBuild:
 REQUIREMENTS_FULFILLED = $(shell upseto checkRequirements 2> /dev/null; echo $$?)
 validate_requirements:
 ifneq ($(SKIP_REQUIREMENTS),1)
-	./validate_packages_prerequisites.sh
+	./sh/validate_packages_prerequisites.sh
 	sudo pip install -r requirements.txt
 	sudo pip install -r ../rackattack-api/requirements.txt
 ifeq ($(REQUIREMENTS_FULFILLED),1)
