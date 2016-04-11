@@ -124,7 +124,12 @@ class Allocation:
                 self._index, "QCOW2 built successfully. Waiting for %d more "
                 "qcows to be built" % self._waitingForImages)
             if self._waitingForImages == 0:
-                self._createVMs()
+                isAlive = self.dead() is None
+                if isAlive:
+                    logging.info("All labels required for the allocation were built. Starting VMs...")
+                    self._createVMs()
+                else:
+                    logging.warn("An build-image job that belongs to a dead allocation has just finished")
         else:
             self._die("unable to build image")
 
