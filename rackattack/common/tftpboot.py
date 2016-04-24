@@ -146,6 +146,8 @@ _INAUGURATOR_COMMAND_LINE = \
     "--inauguratorMyIDForServer=%(id)s " \
     "--inauguratorIPAddress=%(ipAddress)s " \
     "--inauguratorNetmask=%(netmask)s --inauguratorGateway=%(inauguratorGatewayIP)s " \
-    "--inauguratorChangeRootPassword=%(rootPassword)s"
+    "--inauguratorChangeRootPassword=%(rootPassword)s " \
+    "--inauguratorPdbOnError " \
+    "--inauguratorPartitionLayout=GPT"
 
 _INAUGURATOR_COMMAND_LINE_TARGET_DEVICE_ADDITION = " --inauguratorTargetDeviceCandidate=%(targetDevice)s"
